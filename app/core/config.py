@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     app_env: str = "local"
     log_level: str = "INFO"
 
+    # Обязателен к переопределению в проде: дефолт годится только для
+    # локальной разработки и намеренно выглядит как заглушка.
+    secret_key: str = "dev-only-insecure-secret-change-me"
+    access_token_ttl_s: int = Field(default=8 * 60 * 60, gt=0)
+
     postgres_host: str = "localhost"
     postgres_port: int = 5433
     postgres_db: str = "local_knowledge_rag"

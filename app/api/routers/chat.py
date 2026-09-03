@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user, require_role
 from app.api.dependencies import (
     get_answer_generator,
     get_context_builder,
@@ -21,7 +22,7 @@ from app.api.dependencies import (
 from app.api.schemas import ChatRequest, ChatResponse, CitationRead
 from app.core.config import get_settings
 from app.core.errors import NotFoundError, ValidationError
-from app.db.models import Conversation, Message
+from app.db.models import Conversation, Message, PermissionRole, User
 from app.db.session import get_db
 from app.observability.events import traced_query
 from app.rag.context_builder import ContextBuilder
@@ -57,7 +58,11 @@ def chat(
     context_builder: ContextBuilder = Depends(get_context_builder),
     generator: AnswerGenerator = Depends(get_answer_generator),
     query_rewriter: QueryRewriter = Depends(get_query_rewriter),
+    user: User = Depends(get_current_user),
 ) -> ChatResponse:
+    # Тот же фильтр, что и в /search: недостаточно скрыть базу знаний в
+    # списке — её фрагменты не должны попадать даже в контекст ответа.
+    require_role(db, user, payload.knowledge_base_id, PermissionRole.VIEWER)
     settings = get_settings()
     conversation = _load_conversation(payload, db)
 

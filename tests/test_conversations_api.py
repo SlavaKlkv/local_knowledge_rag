@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
+from tests.conftest import authenticate
 
 
 @pytest.fixture
@@ -23,7 +24,9 @@ def db_session(tmp_path):
 def client(db_session):
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
-    return TestClient(app)
+    client = TestClient(app)
+    authenticate(client)
+    return client
 
 
 @pytest.fixture
@@ -43,11 +46,11 @@ def test_create_and_get_conversation(client, knowledge_base_id):
     assert fetched.json()["title"] == "Отпуска"
 
 
-def test_creating_a_conversation_for_unknown_knowledge_base_is_rejected(client):
+def test_creating_a_conversation_for_inaccessible_knowledge_base_is_rejected(client):
     response = client.post(
         "/conversations", json={"knowledge_base_id": str(uuid.uuid4())}
     )
-    assert response.status_code == 404
+    assert response.status_code == 403
 
 
 def test_unknown_conversation_returns_404(client):

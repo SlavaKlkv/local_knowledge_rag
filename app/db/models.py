@@ -40,6 +40,14 @@ class DocumentStatus(enum.StrEnum):
     FAILED = "failed"
 
 
+class PermissionRole(enum.StrEnum):
+    """Права на базу знаний. OWNER подразумевает всё, что может EDITOR."""
+
+    OWNER = "owner"
+    EDITOR = "editor"
+    VIEWER = "viewer"
+
+
 class JobStatus(enum.StrEnum):
     PENDING = "pending"
     RUNNING = "running"
@@ -73,6 +81,32 @@ class KnowledgeBase(Base, TimestampMixin):
     owner: Mapped["User | None"] = relationship(back_populates="knowledge_bases")
     documents: Mapped[list["Document"]] = relationship(
         back_populates="knowledge_base", cascade="all, delete-orphan"
+    )
+
+
+class KnowledgeBasePermission(Base, TimestampMixin):
+    """Доступ пользователя к базе знаний.
+
+    Retrieval фильтрует по этой таблице: пользователь не должен получать
+    в контекст фрагменты из баз знаний, к которым у него нет доступа.
+    """
+
+    __tablename__ = "knowledge_base_permissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "knowledge_base_id", "user_id", name="uq_knowledge_base_permission"
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    knowledge_base_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("knowledge_bases.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[PermissionRole] = mapped_column(
+        Enum(PermissionRole, name="permission_role"), nullable=False
     )
 
 

@@ -8,6 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
+from tests.conftest import authenticate
 
 
 @pytest.fixture
@@ -23,7 +24,9 @@ def db_session(tmp_path):
 def client(db_session):
     app = create_app()
     app.dependency_overrides[get_db] = lambda: db_session
-    return TestClient(app)
+    client = TestClient(app)
+    authenticate(client)
+    return client
 
 
 def test_create_and_get_knowledge_base(client):
@@ -45,10 +48,12 @@ def test_list_returns_created_knowledge_bases(client):
     assert {kb["name"] for kb in response.json()} == {"HR", "Legal"}
 
 
-def test_unknown_knowledge_base_returns_404(client):
+def test_unknown_knowledge_base_is_indistinguishable_from_a_forbidden_one(client):
+    """404 выдал бы факт существования чужой базы знаний, поэтому 403."""
     response = client.get(f"/knowledge-bases/{uuid.uuid4()}")
-    assert response.status_code == 404
-    assert response.json()["error"]["code"] == "not_found"
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
 
 
 def test_deleting_a_knowledge_base(client):
@@ -58,7 +63,7 @@ def test_deleting_a_knowledge_base(client):
     response = client.delete(f"/knowledge-bases/{kb_id}")
 
     assert response.status_code == 204
-    assert client.get(f"/knowledge-bases/{kb_id}").status_code == 404
+    assert client.get(f"/knowledge-bases/{kb_id}").status_code == 403
 
 
 def test_empty_name_is_rejected(client):
