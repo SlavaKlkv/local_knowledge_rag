@@ -14,6 +14,7 @@ from app.main import create_app
 from app.rag.embeddings import EmbeddingProvider
 from app.rag.reranker import NoOpReranker
 from app.rag.vector_store import RetrievedChunk
+from tests.conftest import authenticate
 
 
 class FakeEmbeddings(EmbeddingProvider):
@@ -86,21 +87,27 @@ def client(db_session):
     # /chat трогает БД только когда передан conversation_id, но роутер
     # /conversations нужен всем сценариям с диалогом — держим одну сессию.
     app.dependency_overrides[get_db] = lambda: db_session
-    return TestClient(app)
+    client = TestClient(app)
+    authenticate(client)
+    return client
 
 
-def test_search_returns_hits_with_citation_metadata(client, monkeypatch):
+@pytest.fixture
+def knowledge_base_id(client):
+    """Реальная база знаний: retrieval теперь требует прав на неё."""
+    return client.post("/knowledge-bases", json={"name": "HR"}).json()["id"]
+
+
+def test_search_returns_hits_with_citation_metadata(client, knowledge_base_id, monkeypatch):
     monkeypatch.setattr(
         dependencies, "get_embedding_provider", lambda: FakeEmbeddings()
     )
     monkeypatch.setattr(
         dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()])
     )
-    client.app.dependency_overrides.clear()
-
     response = client.post(
         "/search",
-        json={"query": "отпуск", "knowledge_base_id": str(uuid.uuid4())},
+        json={"query": "отпуск", "knowledge_base_id": knowledge_base_id},
     )
 
     assert response.status_code == 200
@@ -109,7 +116,7 @@ def test_search_returns_hits_with_citation_metadata(client, monkeypatch):
     assert hits[0]["page"] == 1
 
 
-def test_chat_returns_grounded_answer_with_citations(client, monkeypatch):
+def test_chat_returns_grounded_answer_with_citations(client, knowledge_base_id, monkeypatch):
     import json
 
     monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
@@ -124,7 +131,10 @@ def test_chat_returns_grounded_answer_with_citations(client, monkeypatch):
 
     response = client.post(
         "/chat",
-        json={"question": "Когда предоставляется отпуск?", "knowledge_base_id": str(uuid.uuid4())},
+        json={
+            "question": "Когда предоставляется отпуск?",
+            "knowledge_base_id": knowledge_base_id,
+        },
     )
 
     assert response.status_code == 200
@@ -133,13 +143,13 @@ def test_chat_returns_grounded_answer_with_citations(client, monkeypatch):
     assert body["citations"][0]["document_name"] == "policy.pdf"
 
 
-def test_chat_returns_no_answer_when_nothing_is_retrieved(client, monkeypatch):
+def test_chat_returns_no_answer_when_nothing_is_retrieved(client, knowledge_base_id, monkeypatch):
     monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
     monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([]))
 
     response = client.post(
         "/chat",
-        json={"question": "Вопрос без ответа", "knowledge_base_id": str(uuid.uuid4())},
+        json={"question": "Вопрос без ответа", "knowledge_base_id": knowledge_base_id},
     )
 
     assert response.status_code == 200
@@ -148,7 +158,7 @@ def test_chat_returns_no_answer_when_nothing_is_retrieved(client, monkeypatch):
     assert body["citations"] == []
 
 
-def test_inference_error_returns_503_not_silent_fallback(client, monkeypatch):
+def test_inference_error_returns_503_not_silent_fallback(client, knowledge_base_id, monkeypatch):
     monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
     monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()]))
 
@@ -168,14 +178,14 @@ def test_inference_error_returns_503_not_silent_fallback(client, monkeypatch):
 
     response = client.post(
         "/chat",
-        json={"question": "Вопрос", "knowledge_base_id": str(uuid.uuid4())},
+        json={"question": "Вопрос", "knowledge_base_id": knowledge_base_id},
     )
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "inference_error"
 
 
-def test_chat_emits_a_structured_trace_event(client, monkeypatch, caplog):
+def test_chat_emits_a_structured_trace_event(client, knowledge_base_id, monkeypatch, caplog):
     import json
     import logging
 
@@ -192,7 +202,7 @@ def test_chat_emits_a_structured_trace_event(client, monkeypatch, caplog):
 
     client.post(
         "/chat",
-        json={"question": "Когда отпуск?", "knowledge_base_id": str(uuid.uuid4())},
+        json={"question": "Когда отпуск?", "knowledge_base_id": knowledge_base_id},
     )
 
     record = next(r for r in caplog.records if r.name == "rag.query")
@@ -201,7 +211,7 @@ def test_chat_emits_a_structured_trace_event(client, monkeypatch, caplog):
     assert record.rag_query["retrieved_chunk_ids"] == ["c1"]
 
 
-def test_chat_uses_reranker_to_pick_the_final_chunks(client, monkeypatch):
+def test_chat_uses_reranker_to_pick_the_final_chunks(client, knowledge_base_id, monkeypatch):
     import json
 
     from app.rag.reranker import RerankedChunk, Reranker
@@ -243,7 +253,7 @@ def test_chat_uses_reranker_to_pick_the_final_chunks(client, monkeypatch):
 
     response = client.post(
         "/chat",
-        json={"question": "вопрос", "knowledge_base_id": str(uuid.uuid4())},
+        json={"question": "вопрос", "knowledge_base_id": knowledge_base_id},
     )
 
     assert response.status_code == 200

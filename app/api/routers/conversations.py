@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.auth import get_current_user, require_role
 from app.api.schemas import ConversationCreate, ConversationRead, MessageRead
 from app.core.errors import NotFoundError
-from app.db.models import Conversation, KnowledgeBase, Message
+from app.db.models import Conversation, KnowledgeBase, Message, PermissionRole, User
 from app.db.session import get_db
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
@@ -18,14 +19,19 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 @router.post("", response_model=ConversationRead, status_code=201)
 def create_conversation(
-    payload: ConversationCreate, db: Session = Depends(get_db)
+    payload: ConversationCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> Conversation:
+    require_role(db, user, payload.knowledge_base_id, PermissionRole.VIEWER)
     kb = db.get(KnowledgeBase, payload.knowledge_base_id)
     if kb is None:
         raise NotFoundError(f"База знаний {payload.knowledge_base_id} не найдена")
 
     conversation = Conversation(
-        knowledge_base_id=payload.knowledge_base_id, title=payload.title
+        knowledge_base_id=payload.knowledge_base_id,
+        title=payload.title,
+        user_id=user.id,
     )
     db.add(conversation)
     db.commit()
@@ -35,21 +41,27 @@ def create_conversation(
 
 @router.get("/{conversation_id}", response_model=ConversationRead)
 def get_conversation(
-    conversation_id: uuid.UUID, db: Session = Depends(get_db)
+    conversation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> Conversation:
     conversation = db.get(Conversation, conversation_id)
     if conversation is None:
         raise NotFoundError(f"Диалог {conversation_id} не найден")
+    require_role(db, user, conversation.knowledge_base_id, PermissionRole.VIEWER)
     return conversation
 
 
 @router.get("/{conversation_id}/messages", response_model=list[MessageRead])
 def list_messages(
-    conversation_id: uuid.UUID, db: Session = Depends(get_db)
+    conversation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ) -> list[Message]:
     conversation = db.get(Conversation, conversation_id)
     if conversation is None:
         raise NotFoundError(f"Диалог {conversation_id} не найден")
+    require_role(db, user, conversation.knowledge_base_id, PermissionRole.VIEWER)
     stmt = (
         select(Message)
         .where(Message.conversation_id == conversation_id)

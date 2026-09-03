@@ -5,9 +5,47 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
-from app.db.models import DocumentStatus, JobStatus
+from app.db.models import DocumentStatus, JobStatus, PermissionRole
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=128)
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class UserRead(BaseModel):
+    id: uuid.UUID
+    email: str
+    is_active: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class PermissionGrant(BaseModel):
+    user_id: uuid.UUID
+    role: PermissionRole
+
+
+class PermissionRead(BaseModel):
+    id: uuid.UUID
+    knowledge_base_id: uuid.UUID
+    user_id: uuid.UUID
+    role: PermissionRole
+
+    model_config = {"from_attributes": True}
 
 
 class KnowledgeBaseCreate(BaseModel):

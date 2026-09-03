@@ -11,6 +11,7 @@ from app.api.storage import DocumentStorage
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
+from tests.conftest import authenticate
 
 
 @pytest.fixture
@@ -54,7 +55,9 @@ def client(db_session, tmp_path, indexer, dispatched):
         lambda: DocumentStorage(tmp_path / "uploads")
     )
     app.dependency_overrides[dependencies.get_indexer] = lambda: indexer
-    return TestClient(app)
+    client = TestClient(app)
+    authenticate(client)
+    return client
 
 
 @pytest.fixture
@@ -99,10 +102,10 @@ def test_jobs_can_be_listed_for_a_document(client, knowledge_base_id):
     assert [j["id"] for j in jobs] == [body["job_id"]]
 
 
-def test_uploading_to_unknown_knowledge_base_is_rejected(client, dispatched):
+def test_uploading_to_an_inaccessible_knowledge_base_is_rejected(client, dispatched):
     response = _upload(client, str(uuid.uuid4()))
 
-    assert response.status_code == 404
+    assert response.status_code == 403
     assert dispatched == []
 
 

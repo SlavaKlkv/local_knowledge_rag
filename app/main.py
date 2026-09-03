@@ -4,6 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.api.routers import (
+    auth,
     chat,
     conversations,
     documents,
@@ -35,6 +36,7 @@ def create_app() -> FastAPI:
             content={"error": {"code": exc.code, "message": exc.message}},
         )
 
+    app.include_router(auth.router)
     app.include_router(system.router)
     app.include_router(inference.router)
     app.include_router(knowledge_bases.router)
