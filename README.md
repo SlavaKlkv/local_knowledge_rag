@@ -9,32 +9,38 @@
 
 Документы, chunks, embeddings, retrieved context и пользовательские запросы
 **не покидают локальную инфраструктуру**. Скрытого cloud fallback не существует:
-если локальный inference недоступен — возвращается ошибка, а не запрос во внешний API.
+если локальный inference недоступен, API возвращает `503 inference_error`,
+а не отправляет корпоративный контекст во внешний AI-провайдер.
 
 ## Особенности
 
-- RAG/retrieval pipeline реализован самостоятельно, без LangChain / LlamaIndex
-  и прочих orchestration-фреймворков.
-- Локальные LLM, embedding-модели и reranker (Ollama / vLLM).
-- Dense → hybrid retrieval поверх Qdrant, локальный reranking, citations.
-- Hardware-aware выбор профиля моделей и кольцевой fallback Qwen → Gemma → Llama.
+- **RAG-пайплайн написан самостоятельно** — без LangChain, LlamaIndex и прочих
+  orchestration-фреймворков. Каждый слой (chunking, retrieval, fusion, reranking,
+  context building) можно прочитать и понять целиком.
+- **Hybrid retrieval**: dense-эмбеддинги ловят смысловую близость, sparse-векторы —
+  точные лексические совпадения (номера статей, коды); объединяются через
+  Reciprocal Rank Fusion.
+- **Локальный cross-encoder reranker** сужает 20–30 кандидатов до лучших 5–10.
+- **Grounded-ответы с citations**: модель обязана ссылаться на номера фрагментов,
+  ссылки на несуществующие фрагменты отбрасываются, при нехватке данных
+  возвращается честное «нет ответа», а не догадка.
+- **Hardware-aware выбор моделей**: детекция CPU/RAM/GPU/VRAM, рекомендация
+  профиля LIGHT/STANDARD/PERFORMANCE (с возможностью переопределить вручную).
+- **Кольцевой fallback Qwen → Gemma → Llama** с health-состояниями, cooldown
+  и ограничением попыток на один запрос.
 
 ## Pipeline
 
 ```text
 documents → parsing → normalization → chunking → local embeddings
-→ Qdrant indexing → retrieval → hybrid search → reranking
-→ context building → local LLM → answer + citations → evaluation
+→ Qdrant indexing → retrieval (dense + sparse → RRF) → reranking
+→ context building → local LLM → answer + citations
 ```
 
 ## Стек
 
-Python 3.13+, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL, Qdrant,
-Redis, Celery, Ollama/vLLM, Docker Compose, Prometheus/Grafana, pytest.
-
-## Статус
-
-Проект разрабатывается поэтапно, см. [docs/roadmap.md](docs/roadmap.md).
+Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL, Qdrant,
+Redis, Ollama / vLLM, sentence-transformers, Docker Compose, pytest, ruff.
 
 ## Быстрый старт
 
@@ -42,7 +48,69 @@ Redis, Celery, Ollama/vLLM, Docker Compose, Prometheus/Grafana, pytest.
 cp .env.example .env
 docker compose up -d postgres qdrant redis
 uv sync
+uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
 Документация API: http://localhost:8000/docs
+
+### Локальные модели
+
+Проверить, что обнаружено и чего не хватает:
+
+```bash
+curl http://localhost:8000/system/hardware      # железо и рекомендуемый профиль
+curl http://localhost:8000/inference/runtimes   # найденные Ollama / vLLM
+curl http://localhost:8000/inference/status     # кольцо моделей и что нужно скачать
+```
+
+Загрузка модели запускается **только явным запросом** — приложение не тянет
+многогигабайтные веса по своей инициативе:
+
+```bash
+curl -X POST http://localhost:8000/inference/models/qwen3:4b/download
+curl http://localhost:8000/inference/downloads/qwen3:4b   # прогресс
+```
+
+Нужна ещё embedding-модель: `ollama pull nomic-embed-text`.
+
+## API
+
+| Группа | Назначение |
+|---|---|
+| `/system` | Состояние приложения, железо, рекомендуемый профиль |
+| `/inference` | Runtime'ы, кольцо моделей, их установка и загрузка |
+| `/knowledge-bases` | Базы знаний — единица изоляции документов |
+| `/documents` | Загрузка, статус и удаление документов |
+| `/search` | Поиск по базе знаний без генерации |
+| `/conversations` | Диалоги и история сообщений |
+| `/chat` | Вопрос-ответ с citations |
+
+Поддерживаемые форматы документов: PDF, DOCX, HTML, Markdown, TXT.
+
+## Конфигурация
+
+Все параметры — через переменные окружения, см. [.env.example](.env.example):
+подключения к PostgreSQL / Qdrant / Redis, выбор inference-провайдера
+(`INFERENCE_PROVIDER=ollama|vllm`), переопределение профиля
+(`HARDWARE_PROFILE_OVERRIDE`), параметры кольца моделей, reranking и
+hybrid retrieval.
+
+## Тесты
+
+```bash
+uv run pytest
+uv run ruff check .
+```
+
+Тесты Qdrant — интеграционные, против реально поднятого сервиса; при его
+отсутствии они пропускаются.
+
+## Статус
+
+Реализованы этапы V1–V3 (ядро RAG, продвинутый retrieval, локальная
+inference-платформа). Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
+
+## Лицензия
+
+[MIT](LICENSE)
