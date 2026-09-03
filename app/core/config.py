@@ -30,6 +30,11 @@ class Settings(BaseSettings):
 
     inference_timeout_s: float = 120.0
 
+    rerank_enabled: bool = True
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    rerank_candidates: int = Field(default=30, gt=0)
+    rerank_top_k: int = Field(default=8, gt=0)
+
     @property
     def database_url(self) -> str:
         return (

@@ -8,6 +8,7 @@ from app.core.errors import InferenceError
 from app.llm.base import GenerationRequest, GenerationResult, LocalLLMProvider, ModelInfo
 from app.main import create_app
 from app.rag.embeddings import EmbeddingProvider
+from app.rag.reranker import NoOpReranker
 from app.rag.vector_store import RetrievedChunk
 
 
@@ -60,7 +61,11 @@ def _hit(chunk_id="c1", text="Отпуск предоставляется еже
 
 @pytest.fixture
 def client():
-    return TestClient(create_app())
+    app = create_app()
+    # NoOpReranker по умолчанию: реальный cross-encoder качает веса из
+    # сети и не нужен для проверки маршрутизации/контрактов API.
+    app.dependency_overrides[dependencies.get_reranker] = lambda: NoOpReranker()
+    return TestClient(app)
 
 
 def test_search_returns_hits_with_citation_metadata(client, monkeypatch):
@@ -173,3 +178,52 @@ def test_chat_emits_a_structured_trace_event(client, monkeypatch, caplog):
     assert record.rag_query["original_query"] == "Когда отпуск?"
     assert record.rag_query["has_answer"] is True
     assert record.rag_query["retrieved_chunk_ids"] == ["c1"]
+
+
+def test_chat_uses_reranker_to_pick_the_final_chunks(client, monkeypatch):
+    import json
+
+    from app.rag.reranker import RerankedChunk, Reranker
+
+    weak = _hit(chunk_id="weak", text="слабое совпадение")
+    strong = _hit(chunk_id="strong", text="точное совпадение")
+
+    class ReverseReranker(Reranker):
+        """Намеренно инвертирует порядок retrieval, чтобы тест доказывал,
+        что финальные citations формируются по результату reranking,
+        а не по исходному порядку dense-поиска."""
+
+        name = "reverse"
+
+        def rerank(self, query, candidates, top_k=8):
+            reversed_candidates = list(reversed(candidates))
+            scores = range(len(reversed_candidates), 0, -1)
+            return [
+                RerankedChunk(chunk=chunk, rerank_score=float(score))
+                for chunk, score in zip(reversed_candidates, scores, strict=True)
+            ][:top_k]
+
+        def health_check(self) -> bool:
+            return True
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    # Dense-поиск ставит strong первым; реранкер должен это переопределить.
+    monkeypatch.setattr(
+        dependencies, "get_vector_store", lambda: FakeVectorStore([strong, weak])
+    )
+    client.app.dependency_overrides[dependencies.get_reranker] = lambda: ReverseReranker()
+    monkeypatch.setattr(
+        dependencies,
+        "get_llm_provider",
+        lambda: FakeLLM(
+            json.dumps({"answer": "Ответ [1].", "has_answer": True, "citations": [1]})
+        ),
+    )
+
+    response = client.post(
+        "/chat",
+        json={"question": "вопрос", "knowledge_base_id": str(uuid.uuid4())},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["citations"][0]["chunk_id"] == "weak"
