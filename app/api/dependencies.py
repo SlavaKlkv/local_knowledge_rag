@@ -16,7 +16,15 @@ from app.rag.indexer import DocumentIndexer
 from app.rag.retriever import DenseRetriever
 from app.rag.vector_store import QdrantVectorStore
 
-ALLOWED_UPLOAD_EXTENSIONS = (".pdf", ".txt", ".md", ".markdown")
+ALLOWED_UPLOAD_EXTENSIONS = (
+    ".pdf",
+    ".txt",
+    ".md",
+    ".markdown",
+    ".docx",
+    ".html",
+    ".htm",
+)
 
 
 @lru_cache
