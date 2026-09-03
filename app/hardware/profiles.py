@@ -26,8 +26,18 @@ class HardwareProfile(enum.StrEnum):
 
 @dataclass(slots=True)
 class ModelRingEntry:
+    """Модель в кольце профиля.
+
+    Размер загрузки и требования к памяти — ориентировочные, для
+    квантованных весов по умолчанию. Они нужны, чтобы показать
+    пользователю цену загрузки *до* её начала: реальный размер известен
+    только после обращения к реестру моделей runtime'а.
+    """
+
     family: str
     model: str
+    download_size_gb: float = 0.0
+    min_ram_gb: int = 0
 
 
 @dataclass(slots=True)
@@ -43,9 +53,9 @@ _PROFILES: dict[HardwareProfile, ProfileDefinition] = {
     HardwareProfile.LIGHT: ProfileDefinition(
         profile=HardwareProfile.LIGHT,
         ring=[
-            ModelRingEntry("qwen", "qwen3:4b"),
-            ModelRingEntry("gemma", "gemma3:4b"),
-            ModelRingEntry("llama", "llama3.1:8b"),
+            ModelRingEntry("qwen", "qwen3:4b", download_size_gb=2.6, min_ram_gb=8),
+            ModelRingEntry("gemma", "gemma3:4b", download_size_gb=3.3, min_ram_gb=8),
+            ModelRingEntry("llama", "llama3.1:8b", download_size_gb=4.9, min_ram_gb=12),
         ],
         min_ram_mb=8 * 1024,
         min_vram_mb=None,
@@ -54,9 +64,9 @@ _PROFILES: dict[HardwareProfile, ProfileDefinition] = {
     HardwareProfile.STANDARD: ProfileDefinition(
         profile=HardwareProfile.STANDARD,
         ring=[
-            ModelRingEntry("qwen", "qwen3:14b"),
-            ModelRingEntry("gemma", "gemma3:12b"),
-            ModelRingEntry("llama", "llama3.1:8b"),
+            ModelRingEntry("qwen", "qwen3:14b", download_size_gb=9.3, min_ram_gb=24),
+            ModelRingEntry("gemma", "gemma3:12b", download_size_gb=8.1, min_ram_gb=24),
+            ModelRingEntry("llama", "llama3.1:8b", download_size_gb=4.9, min_ram_gb=12),
         ],
         min_ram_mb=24 * 1024,
         min_vram_mb=12 * 1024,
@@ -65,9 +75,9 @@ _PROFILES: dict[HardwareProfile, ProfileDefinition] = {
     HardwareProfile.PERFORMANCE: ProfileDefinition(
         profile=HardwareProfile.PERFORMANCE,
         ring=[
-            ModelRingEntry("qwen", "qwen3:32b"),
-            ModelRingEntry("gemma", "gemma3:27b"),
-            ModelRingEntry("llama", "llama3.1:70b"),
+            ModelRingEntry("qwen", "qwen3:32b", download_size_gb=20.0, min_ram_gb=48),
+            ModelRingEntry("gemma", "gemma3:27b", download_size_gb=17.0, min_ram_gb=48),
+            ModelRingEntry("llama", "llama3.1:70b", download_size_gb=40.0, min_ram_gb=80),
         ],
         min_ram_mb=64 * 1024,
         min_vram_mb=24 * 1024,

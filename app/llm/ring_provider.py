@@ -20,6 +20,10 @@ class RingLLMProvider(LocalLLMProvider):
         self._ring = ring
         self.last_outcome: RingGenerationResult | None = None
 
+    @property
+    def ring(self) -> ModelRing:
+        return self._ring
+
     def generate(self, request: GenerationRequest, model: str) -> GenerationResult:
         outcome = self._ring.generate(request)
         self.last_outcome = outcome

@@ -7,6 +7,7 @@ from app.api.routers import (
     chat,
     conversations,
     documents,
+    inference,
     knowledge_bases,
     search,
     system,
@@ -34,6 +35,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(system.router)
+    app.include_router(inference.router)
     app.include_router(knowledge_bases.router)
     app.include_router(documents.router)
     app.include_router(search.router)
