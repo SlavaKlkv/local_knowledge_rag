@@ -7,8 +7,10 @@ from pathlib import Path
 
 from app.api.storage import DocumentStorage
 from app.core.config import get_settings
+from app.core.errors import ValidationError
 from app.llm.base import LocalLLMProvider
 from app.llm.ollama import OllamaProvider
+from app.llm.vllm import VLLMProvider
 from app.rag.context_builder import ContextBuilder
 from app.rag.embeddings import EmbeddingProvider, OllamaEmbeddingProvider
 from app.rag.generation import AnswerGenerator
@@ -46,7 +48,16 @@ def get_vector_store() -> QdrantVectorStore:
 
 @lru_cache
 def get_llm_provider() -> LocalLLMProvider:
-    return OllamaProvider()
+    # LLM модель ≠ inference runtime: выбор провайдера не меняет остальной
+    # pipeline, только то, куда уходит запрос генерации.
+    provider = get_settings().inference_provider
+    if provider == "ollama":
+        return OllamaProvider()
+    if provider == "vllm":
+        return VLLMProvider()
+    raise ValidationError(
+        f"Неизвестный INFERENCE_PROVIDER '{provider}'. Доступны: ollama, vllm"
+    )
 
 
 @lru_cache
