@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Local data
+data/
+models/
+storage/
+*.db
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Agent-local
+CLAUDE.md
+.claude/
+TASK.md
