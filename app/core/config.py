@@ -25,6 +25,9 @@ class Settings(BaseSettings):
 
     ollama_url: str = "http://localhost:11434"
     vllm_url: str = "http://localhost:8000"
+    # Явный выбор runtime пользователем: "ollama" или "vllm". Детектор
+    # только рекомендует — переключение всегда по этой настройке.
+    inference_provider: str = "ollama"
     llm_model: str = "qwen3:4b"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = Field(default=768, gt=0)
