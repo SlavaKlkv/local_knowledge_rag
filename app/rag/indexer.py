@@ -13,6 +13,7 @@ from pathlib import Path
 from app.ingestion.chunking import ChunkingStrategy, get_chunking_strategy
 from app.ingestion.parsers import ParserRegistry
 from app.rag.embeddings import EmbeddingProvider
+from app.rag.sparse import HashedSparseVectorizer
 from app.rag.vector_store import ChunkPoint, QdrantVectorStore, build_chunk_id
 
 
@@ -32,12 +33,14 @@ class DocumentIndexer:
         vector_store: QdrantVectorStore,
         parsers: ParserRegistry | None = None,
         strategy: ChunkingStrategy | None = None,
+        sparse_vectorizer: HashedSparseVectorizer | None = None,
         batch_size: int = 32,
     ) -> None:
         self._embeddings = embeddings
         self._vector_store = vector_store
         self._parsers = parsers or ParserRegistry()
         self._strategy = strategy or get_chunking_strategy("recursive")
+        self._sparse_vectorizer = sparse_vectorizer or HashedSparseVectorizer()
         self._batch_size = batch_size
 
     def index(
@@ -64,6 +67,7 @@ class DocumentIndexer:
                     chunk_index=chunk.index,
                     text=chunk.text,
                     vector=vector,
+                    sparse_vector=self._sparse_vectorizer.vectorize(chunk.text),
                     version=version,
                     page=chunk.page,
                     section=chunk.section,
