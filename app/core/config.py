@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     postgres_host: str = "localhost"
-    postgres_port: int = 5432
+    postgres_port: int = 5433
     postgres_db: str = "local_knowledge_rag"
     postgres_user: str = "rag"
     postgres_password: str = "change-me"
