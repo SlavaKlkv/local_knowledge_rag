@@ -142,3 +142,99 @@ def test_deleting_a_document_removes_its_vectors(client, knowledge_base_id, inde
 
 def test_unknown_indexing_job_returns_404(client):
     assert client.get(f"/indexing-jobs/{uuid.uuid4()}").status_code == 404
+
+
+def test_reindex_starts_a_new_job_without_creating_a_version(
+    client, knowledge_base_id, db_session, dispatched
+):
+    from app.db.models import DocumentVersion
+
+    document_id = _upload(client, knowledge_base_id).json()["document"]["id"]
+    dispatched.clear()
+
+    response = client.post(f"/documents/{document_id}/reindex")
+
+    assert response.status_code == 202
+    assert response.json()["document"]["current_version"] == 1
+    assert db_session.query(DocumentVersion).count() == 1
+    assert len(dispatched) == 1
+
+
+def test_reindex_resets_a_failed_document(client, knowledge_base_id, db_session):
+    import uuid as _uuid
+
+    from app.db.models import Document, DocumentStatus
+
+    document_id = _upload(client, knowledge_base_id).json()["document"]["id"]
+    document = db_session.get(Document, _uuid.UUID(document_id))
+    document.status = DocumentStatus.FAILED
+    document.error = "модель недоступна"
+    db_session.commit()
+
+    body = client.post(f"/documents/{document_id}/reindex").json()
+
+    assert body["document"]["status"] == "uploaded"
+    assert body["document"]["error"] is None
+
+
+def test_reindex_of_unknown_document_returns_404(client):
+    assert client.post(f"/documents/{uuid.uuid4()}/reindex").status_code == 404
+
+
+def test_new_version_increments_the_counter_and_stores_the_new_file(
+    client, knowledge_base_id, db_session, dispatched
+):
+    from app.db.models import DocumentVersion
+
+    document_id = _upload(client, knowledge_base_id).json()["document"]["id"]
+    dispatched.clear()
+
+    response = client.post(
+        f"/documents/{document_id}/versions",
+        files={"file": ("policy_v2.txt", io.BytesIO(b"updated content"), "text/plain")},
+    )
+
+    assert response.status_code == 202
+    body = response.json()
+    assert body["document"]["current_version"] == 2
+    assert body["document"]["filename"] == "policy_v2.txt"
+    assert body["document"]["status"] == "uploaded"
+
+    versions = db_session.query(DocumentVersion).order_by(DocumentVersion.version).all()
+    assert [v.version for v in versions] == [1, 2]
+    assert versions[0].storage_path != versions[1].storage_path
+    assert len(dispatched) == 1
+
+
+def test_versions_can_be_listed(client, knowledge_base_id):
+    document_id = _upload(client, knowledge_base_id).json()["document"]["id"]
+    client.post(
+        f"/documents/{document_id}/versions",
+        files={"file": ("v2.txt", io.BytesIO(b"v2"), "text/plain")},
+    )
+
+    versions = client.get(f"/documents/{document_id}/versions").json()
+
+    assert [v["version"] for v in versions] == [1, 2]
+
+
+def test_new_version_of_unknown_document_returns_404(client):
+    response = client.post(
+        f"/documents/{uuid.uuid4()}/versions",
+        files={"file": ("v2.txt", io.BytesIO(b"v2"), "text/plain")},
+    )
+
+    assert response.status_code == 404
+
+
+def test_new_version_rejects_unsupported_format(client, knowledge_base_id, dispatched):
+    document_id = _upload(client, knowledge_base_id).json()["document"]["id"]
+    dispatched.clear()
+
+    response = client.post(
+        f"/documents/{document_id}/versions",
+        files={"file": ("v2.zip", io.BytesIO(b"v2"), "application/zip")},
+    )
+
+    assert response.status_code == 422
+    assert dispatched == []
