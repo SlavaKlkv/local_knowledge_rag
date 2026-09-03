@@ -1,14 +1,14 @@
 # Roadmap
 
-## V1 — Core Local RAG
+## V1 — Core Local RAG ✅
 FastAPI, PostgreSQL, Qdrant, Ollama, local LLM, local embeddings, PDF/TXT,
 chunking, dense retrieval, generation, citations.
 
-## V2 — Advanced Retrieval
+## V2 — Advanced Retrieval ✅
 Остальные форматы документов, metadata filters, hybrid retrieval,
 локальный reranker, query rewriting, configurable chunking.
 
-## V3 — Local Inference Platform
+## V3 — Local Inference Platform ✅
 LocalLLMProvider, OllamaProvider, VLLMProvider, HardwareDetector,
 RuntimeDetector, ProfileRecommender, профили LIGHT/STANDARD/PERFORMANCE,
 ручное переопределение профиля, предложение установки Ollama,
