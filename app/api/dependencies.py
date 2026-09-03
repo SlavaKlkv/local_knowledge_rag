@@ -13,6 +13,7 @@ from app.rag.context_builder import ContextBuilder
 from app.rag.embeddings import EmbeddingProvider, OllamaEmbeddingProvider
 from app.rag.generation import AnswerGenerator
 from app.rag.indexer import DocumentIndexer
+from app.rag.query_rewriting import QueryRewriter
 from app.rag.reranker import CrossEncoderReranker, NoOpReranker, Reranker
 from app.rag.retriever import DenseRetriever
 from app.rag.vector_store import QdrantVectorStore
@@ -72,3 +73,7 @@ def get_context_builder() -> ContextBuilder:
 
 def get_answer_generator() -> AnswerGenerator:
     return AnswerGenerator(get_llm_provider(), get_settings().llm_model)
+
+
+def get_query_rewriter() -> QueryRewriter:
+    return QueryRewriter(get_llm_provider(), get_settings().llm_model)

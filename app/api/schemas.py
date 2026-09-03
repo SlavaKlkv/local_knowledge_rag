@@ -73,6 +73,8 @@ class ChatRequest(BaseModel):
     question: str = Field(min_length=1)
     knowledge_base_id: uuid.UUID
     top_k: int = Field(default=10, ge=1, le=100)
+    # Диалог опционален: без него /chat остаётся одиночным stateless-запросом.
+    conversation_id: uuid.UUID | None = None
 
 
 class ChatResponse(BaseModel):
@@ -82,3 +84,29 @@ class ChatResponse(BaseModel):
     model: str | None = None
     provider: str | None = None
     latency_ms: int | None = None
+    conversation_id: uuid.UUID | None = None
+    rewritten_query: str | None = None
+
+
+class ConversationCreate(BaseModel):
+    knowledge_base_id: uuid.UUID
+    title: str | None = Field(default=None, max_length=512)
+
+
+class ConversationRead(BaseModel):
+    id: uuid.UUID
+    knowledge_base_id: uuid.UUID
+    title: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MessageRead(BaseModel):
+    id: uuid.UUID
+    role: str
+    content: str
+    citations: list[dict] | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

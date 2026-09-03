@@ -3,7 +3,14 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.routers import chat, documents, knowledge_bases, search, system
+from app.api.routers import (
+    chat,
+    conversations,
+    documents,
+    knowledge_bases,
+    search,
+    system,
+)
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.core.logging import configure_logging
@@ -30,6 +37,7 @@ def create_app() -> FastAPI:
     app.include_router(knowledge_bases.router)
     app.include_router(documents.router)
     app.include_router(search.router)
+    app.include_router(conversations.router)
     app.include_router(chat.router)
     return app
 
