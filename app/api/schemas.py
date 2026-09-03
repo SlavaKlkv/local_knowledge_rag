@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from app.db.models import DocumentStatus
+from app.db.models import DocumentStatus, JobStatus
 
 
 class KnowledgeBaseCreate(BaseModel):
@@ -36,6 +36,24 @@ class DocumentRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class IndexingJobRead(BaseModel):
+    id: uuid.UUID
+    document_id: uuid.UUID
+    status: JobStatus
+    stage: str | None = None
+    error: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class DocumentUploadResponse(BaseModel):
+    """Загрузка принята: документ создан, индексация идёт в фоне."""
+
+    document: DocumentRead
+    job_id: uuid.UUID
 
 
 class CitationRead(BaseModel):

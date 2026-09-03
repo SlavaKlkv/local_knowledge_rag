@@ -52,6 +52,13 @@ uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
 
+Индексация документов идёт в фоне, поэтому нужен ещё воркер — в отдельном
+терминале:
+
+```bash
+uv run celery -A app.workers.celery_app:celery_app worker --loglevel=info
+```
+
 Документация API: http://localhost:8000/docs
 
 ### Локальные модели
@@ -82,6 +89,7 @@ curl http://localhost:8000/inference/downloads/qwen3:4b   # прогресс
 | `/inference` | Runtime'ы, кольцо моделей, их установка и загрузка |
 | `/knowledge-bases` | Базы знаний — единица изоляции документов |
 | `/documents` | Загрузка, статус и удаление документов |
+| `/indexing-jobs` | Прогресс фоновой индексации |
 | `/search` | Поиск по базе знаний без генерации |
 | `/conversations` | Диалоги и история сообщений |
 | `/chat` | Вопрос-ответ с citations |

@@ -23,6 +23,10 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
 
+    # Eager-режим выполняет задачи Celery прямо в вызывающем процессе:
+    # нужен для тестов и локального запуска без отдельного воркера.
+    celery_task_always_eager: bool = False
+
     ollama_url: str = "http://localhost:11434"
     vllm_url: str = "http://localhost:8000"
     # Явный выбор runtime пользователем: "ollama" или "vllm". Детектор
