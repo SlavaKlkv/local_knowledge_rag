@@ -5,6 +5,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Enum,
     ForeignKey,
@@ -18,6 +19,9 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
+
+# JSONB на PostgreSQL, обычный JSON в остальных диалектах (юнит-тесты на SQLite).
+_JSON = JSON().with_variant(JSONB(), "postgresql")
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -164,5 +168,7 @@ class Message(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(16), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     # Цитаты и метаданные ответа: модель, латентность, retrieval-скоры.
-    citations: Mapped[list[dict] | None] = mapped_column(JSONB)
-    meta: Mapped[dict | None] = mapped_column(JSONB)
+    citations: Mapped[list[dict] | None] = mapped_column(_JSON)
+    meta: Mapped[dict | None] = mapped_column(_JSON)
+
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
