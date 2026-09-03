@@ -147,3 +147,29 @@ def test_inference_error_returns_503_not_silent_fallback(client, monkeypatch):
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "inference_error"
+
+
+def test_chat_emits_a_structured_trace_event(client, monkeypatch, caplog):
+    import json
+    import logging
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()]))
+    monkeypatch.setattr(
+        dependencies,
+        "get_llm_provider",
+        lambda: FakeLLM(
+            json.dumps({"answer": "Ежегодно [1].", "has_answer": True, "citations": [1]})
+        ),
+    )
+    caplog.set_level(logging.INFO, logger="rag.query")
+
+    client.post(
+        "/chat",
+        json={"question": "Когда отпуск?", "knowledge_base_id": str(uuid.uuid4())},
+    )
+
+    record = next(r for r in caplog.records if r.name == "rag.query")
+    assert record.rag_query["original_query"] == "Когда отпуск?"
+    assert record.rag_query["has_answer"] is True
+    assert record.rag_query["retrieved_chunk_ids"] == ["c1"]
