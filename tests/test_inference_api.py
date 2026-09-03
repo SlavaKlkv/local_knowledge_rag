@@ -170,3 +170,116 @@ def test_status_never_triggers_a_download_on_its_own(monkeypatch, installed):
     )
 
     assert response.status_code == 200
+
+
+class FakeRuntimeDetector:
+    def __init__(self, ollama_available: bool = True, vllm_available: bool = False) -> None:
+        self.ollama_available = ollama_available
+        self.vllm_available = vllm_available
+
+    def detect(self):
+        from app.hardware.runtime_detector import (
+            InferenceRuntime,
+            RuntimeAvailability,
+            RuntimeDetectionResult,
+        )
+
+        return RuntimeDetectionResult(
+            runtimes=[
+                RuntimeAvailability(
+                    runtime=InferenceRuntime.OLLAMA,
+                    available=self.ollama_available,
+                    base_url="http://localhost:11434",
+                    detail=None if self.ollama_available else "connection refused",
+                ),
+                RuntimeAvailability(
+                    runtime=InferenceRuntime.VLLM,
+                    available=self.vllm_available,
+                    base_url="http://localhost:8000",
+                    detail=None if self.vllm_available else "connection refused",
+                ),
+            ]
+        )
+
+
+def _runtime_client(detector: FakeRuntimeDetector, installer=None) -> TestClient:
+    from app.hardware.runtime_installer import RuntimeInstaller
+
+    app = create_app()
+    app.dependency_overrides[inference.get_runtime_detector] = lambda: detector
+    app.dependency_overrides[inference.get_runtime_installer] = lambda: (
+        installer
+        or RuntimeInstaller(
+            run_command=lambda args: (0, "ok"),
+            system="Darwin",
+            has_binary=lambda name: name == "brew",
+        )
+    )
+    return TestClient(app)
+
+
+def test_runtimes_endpoint_offers_installation_only_for_missing_runtimes():
+    client = _runtime_client(FakeRuntimeDetector(ollama_available=True))
+
+    body = client.get("/inference/runtimes").json()
+
+    by_runtime = {r["runtime"]: r for r in body["runtimes"]}
+    assert by_runtime["ollama"]["installation_offer"] is None
+    assert by_runtime["vllm"]["installation_offer"] is not None
+    assert body["recommended"] == "ollama"
+
+
+def test_runtimes_endpoint_offers_ollama_installation_when_it_is_missing():
+    client = _runtime_client(FakeRuntimeDetector(ollama_available=False))
+
+    body = client.get("/inference/runtimes").json()
+
+    offer = next(r for r in body["runtimes"] if r["runtime"] == "ollama")["installation_offer"]
+    assert offer["manual_command"] == "brew install ollama"
+    assert "ollama.com" in offer["documentation_url"]
+    assert body["recommended"] is None
+
+
+def test_installation_without_confirmation_is_rejected():
+    client = _runtime_client(FakeRuntimeDetector(ollama_available=False))
+
+    response = client.post("/inference/runtimes/ollama/install", json={"confirm": False})
+
+    assert response.status_code == 422
+    assert "подтверждения" in response.json()["error"]["message"]
+
+
+def test_installation_is_refused_while_disabled_by_configuration(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setenv("RUNTIME_INSTALL_ENABLED", "false")
+    get_settings.cache_clear()
+    client = _runtime_client(FakeRuntimeDetector(ollama_available=False))
+
+    response = client.post("/inference/runtimes/ollama/install", json={"confirm": True})
+
+    get_settings.cache_clear()
+    assert response.status_code == 422
+    assert "недоступна" in response.json()["error"]["message"]
+
+
+def test_confirmed_installation_reports_result_and_rechecks_availability(monkeypatch):
+    from app.core.config import get_settings
+    from app.hardware.runtime_installer import RuntimeInstaller
+
+    monkeypatch.setenv("RUNTIME_INSTALL_ENABLED", "true")
+    get_settings.cache_clear()
+    installer = RuntimeInstaller(
+        run_command=lambda args: (0, "installed"),
+        system="Darwin",
+        has_binary=lambda name: name == "brew",
+    )
+    client = _runtime_client(FakeRuntimeDetector(ollama_available=True), installer)
+
+    response = client.post("/inference/runtimes/ollama/install", json={"confirm": True})
+
+    get_settings.cache_clear()
+    assert response.status_code == 200
+    body = response.json()
+    assert body["succeeded"] is True
+    assert body["available_after_install"] is True

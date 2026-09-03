@@ -18,6 +18,12 @@ from app.api.dependencies import (
 from app.core.config import get_settings
 from app.hardware.detector import HardwareDetector
 from app.hardware.profiles import HardwareProfile, get_profile_definition
+from app.hardware.runtime_detector import (
+    InferenceRuntime,
+    RuntimeDetectionResult,
+    RuntimeDetector,
+)
+from app.hardware.runtime_installer import RuntimeInstaller
 from app.llm.base import LocalLLMProvider
 from app.llm.provisioning import DownloadState, ModelProvisioner
 from app.llm.ring import ModelHealth
@@ -55,6 +61,44 @@ class InferenceStatusResponse(BaseModel):
     enough_disk_space: bool
 
 
+class InstallationOfferResponse(BaseModel):
+    runtime: InferenceRuntime
+    supported: bool
+    manual_command: str | None
+    documentation_url: str
+    note: str
+    automatic_install_enabled: bool
+
+
+class RuntimeStatusResponse(BaseModel):
+    runtime: InferenceRuntime
+    available: bool
+    base_url: str
+    detail: str | None
+    # Предложение появляется только для отсутствующего runtime'а —
+    # предлагать установку уже установленного нечего.
+    installation_offer: InstallationOfferResponse | None
+
+
+class RuntimesResponse(BaseModel):
+    selected: str
+    recommended: InferenceRuntime | None
+    runtimes: list[RuntimeStatusResponse]
+
+
+class InstallationRequest(BaseModel):
+    # Явное подтверждение обязательно: приложение не ставит системные
+    # компоненты по собственной инициативе.
+    confirm: bool = False
+
+
+class InstallationResultResponse(BaseModel):
+    runtime: InferenceRuntime
+    succeeded: bool
+    output: str
+    available_after_install: bool
+
+
 class DownloadProgressResponse(BaseModel):
     model: str
     state: DownloadState
@@ -67,6 +111,15 @@ class DownloadProgressResponse(BaseModel):
 
 def get_hardware_detector() -> HardwareDetector:
     return HardwareDetector()
+
+
+def get_runtime_detector() -> RuntimeDetector:
+    settings = get_settings()
+    return RuntimeDetector(ollama_url=settings.ollama_url, vllm_url=settings.vllm_url)
+
+
+def get_runtime_installer() -> RuntimeInstaller:
+    return RuntimeInstaller()
 
 
 def _free_disk_gb(detector: HardwareDetector) -> float:
@@ -120,6 +173,53 @@ def status(
     )
 
 
+@router.get("/runtimes", response_model=RuntimesResponse)
+def runtimes(
+    detector: RuntimeDetector = Depends(get_runtime_detector),
+    installer: RuntimeInstaller = Depends(get_runtime_installer),
+) -> RuntimesResponse:
+    """Обнаруженные runtime'ы, а для отсутствующих — как их поставить."""
+    detection: RuntimeDetectionResult = detector.detect()
+    return RuntimesResponse(
+        selected=get_settings().inference_provider,
+        recommended=detection.recommended,
+        runtimes=[
+            RuntimeStatusResponse(
+                runtime=r.runtime,
+                available=r.available,
+                base_url=r.base_url,
+                detail=r.detail,
+                installation_offer=(
+                    None if r.available else _to_offer(installer.offer(r.runtime))
+                ),
+            )
+            for r in detection.runtimes
+        ],
+    )
+
+
+@router.post(
+    "/runtimes/{runtime}/install", response_model=InstallationResultResponse
+)
+def install_runtime(
+    runtime: InferenceRuntime,
+    payload: InstallationRequest,
+    installer: RuntimeInstaller = Depends(get_runtime_installer),
+    detector: RuntimeDetector = Depends(get_runtime_detector),
+) -> InstallationResultResponse:
+    """Ставит runtime — только при confirm=true и включённой настройке."""
+    result = installer.install(runtime, confirmed=payload.confirm)
+    # Health check после установки: успешный код возврата ещё не значит,
+    # что сервис поднялся и отвечает.
+    available = detector.detect().is_available(runtime)
+    return InstallationResultResponse(
+        runtime=result.runtime,
+        succeeded=result.succeeded,
+        output=result.output,
+        available_after_install=available,
+    )
+
+
 @router.post(
     "/models/{model:path}/download",
     response_model=DownloadProgressResponse,
@@ -150,6 +250,17 @@ def download_progress(
     model: str, provisioner: ModelProvisioner = Depends(get_model_provisioner)
 ) -> DownloadProgressResponse:
     return _to_response(provisioner.progress(model))
+
+
+def _to_offer(offer) -> InstallationOfferResponse:
+    return InstallationOfferResponse(
+        runtime=offer.runtime,
+        supported=offer.supported,
+        manual_command=offer.manual_command,
+        documentation_url=offer.documentation_url,
+        note=offer.note,
+        automatic_install_enabled=offer.automatic_install_enabled,
+    )
 
 
 def _to_response(progress) -> DownloadProgressResponse:

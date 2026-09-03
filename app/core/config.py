@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     # рекомендует, а не решает окончательно.
     hardware_profile_override: str | None = None
 
+    # Установка системного компонента (Ollama) из приложения — это запуск
+    # системной команды по HTTP-запросу, поэтому по умолчанию выключена:
+    # приложение отдаёт готовую команду, а выполняет её пользователь сам.
+    runtime_install_enabled: bool = False
+
     inference_timeout_s: float = 120.0
 
     rerank_enabled: bool = True
