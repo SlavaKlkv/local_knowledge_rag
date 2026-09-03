@@ -7,12 +7,15 @@ from fastapi import APIRouter, Depends
 from app.api.dependencies import (
     get_answer_generator,
     get_context_builder,
+    get_reranker,
     get_retriever,
 )
 from app.api.schemas import ChatRequest, ChatResponse, CitationRead
+from app.core.config import get_settings
 from app.observability.events import traced_query
 from app.rag.context_builder import ContextBuilder
 from app.rag.generation import AnswerGenerator
+from app.rag.reranker import Reranker
 from app.rag.retriever import DenseRetriever, RetrievalQuery
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -22,19 +25,29 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 def chat(
     payload: ChatRequest,
     retriever: DenseRetriever = Depends(get_retriever),
+    reranker: Reranker = Depends(get_reranker),
     context_builder: ContextBuilder = Depends(get_context_builder),
     generator: AnswerGenerator = Depends(get_answer_generator),
 ) -> ChatResponse:
+    settings = get_settings()
     with traced_query(str(payload.knowledge_base_id), payload.question) as trace:
-        hits = retriever.retrieve(
+        # Кандидатов берём с запасом относительно итогового top_k: reranker
+        # работает точнее dense-поиска именно на более широком наборе.
+        candidates = retriever.retrieve(
             RetrievalQuery(
                 text=payload.question,
                 knowledge_base_id=str(payload.knowledge_base_id),
-                top_k=payload.top_k,
+                top_k=max(payload.top_k, settings.rerank_candidates),
             )
         )
-        trace.retrieved_chunk_ids = [hit.chunk_id for hit in hits]
-        trace.retrieval_scores = [hit.score for hit in hits]
+        trace.retrieved_chunk_ids = [hit.chunk_id for hit in candidates]
+        trace.retrieval_scores = [hit.score for hit in candidates]
+
+        reranked = reranker.rerank(
+            payload.question, candidates, top_k=min(payload.top_k, settings.rerank_top_k)
+        )
+        trace.reranking_scores = [item.rerank_score for item in reranked]
+        hits = [item.chunk for item in reranked]
 
         context = context_builder.build(hits)
         answer = generator.generate(payload.question, context)
