@@ -2,9 +2,13 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 
 from app.api import dependencies
 from app.core.errors import InferenceError
+from app.db.base import Base
+from app.db.session import get_db
 from app.llm.base import GenerationRequest, GenerationResult, LocalLLMProvider, ModelInfo
 from app.main import create_app
 from app.rag.embeddings import EmbeddingProvider
@@ -60,11 +64,23 @@ def _hit(chunk_id="c1", text="Отпуск предоставляется еже
 
 
 @pytest.fixture
-def client():
+def db_session(tmp_path):
+    engine = create_engine(f"sqlite:///{tmp_path}/test.db")
+    Base.metadata.create_all(engine)
+    factory = sessionmaker(bind=engine, expire_on_commit=False)
+    with factory() as session:
+        yield session
+
+
+@pytest.fixture
+def client(db_session):
     app = create_app()
     # NoOpReranker по умолчанию: реальный cross-encoder качает веса из
     # сети и не нужен для проверки маршрутизации/контрактов API.
     app.dependency_overrides[dependencies.get_reranker] = lambda: NoOpReranker()
+    # /chat трогает БД только когда передан conversation_id, но роутер
+    # /conversations нужен всем сценариям с диалогом — держим одну сессию.
+    app.dependency_overrides[get_db] = lambda: db_session
     return TestClient(app)
 
 
@@ -227,3 +243,124 @@ def test_chat_uses_reranker_to_pick_the_final_chunks(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.json()["citations"][0]["chunk_id"] == "weak"
+
+
+def test_chat_with_conversation_persists_messages(client, monkeypatch):
+    import json
+
+    kb_id = client.post("/knowledge-bases", json={"name": "HR"}).json()["id"]
+    conversation_id = client.post(
+        "/conversations", json={"knowledge_base_id": kb_id}
+    ).json()["id"]
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()]))
+    monkeypatch.setattr(
+        dependencies,
+        "get_llm_provider",
+        lambda: FakeLLM(
+            json.dumps({"answer": "Ежегодно [1].", "has_answer": True, "citations": [1]})
+        ),
+    )
+
+    response = client.post(
+        "/chat",
+        json={
+            "question": "Когда отпуск?",
+            "knowledge_base_id": kb_id,
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["conversation_id"] == conversation_id
+
+    messages = client.get(f"/conversations/{conversation_id}/messages").json()
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert messages[0]["content"] == "Когда отпуск?"
+    assert messages[1]["citations"][0]["document_name"] == "policy.pdf"
+
+
+def test_chat_rejects_conversation_from_a_different_knowledge_base(client, monkeypatch):
+    kb_a = client.post("/knowledge-bases", json={"name": "A"}).json()["id"]
+    kb_b = client.post("/knowledge-bases", json={"name": "B"}).json()["id"]
+    conversation_id = client.post(
+        "/conversations", json={"knowledge_base_id": kb_a}
+    ).json()["id"]
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()]))
+
+    response = client.post(
+        "/chat",
+        json={
+            "question": "вопрос",
+            "knowledge_base_id": kb_b,
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_chat_uses_history_to_rewrite_a_contextual_follow_up(client, monkeypatch, db_session):
+    import json
+
+    from app.db.models import Message
+    from app.llm.base import GenerationRequest, GenerationResult
+
+    kb_id = client.post("/knowledge-bases", json={"name": "HR"}).json()["id"]
+    conversation_id = client.post(
+        "/conversations", json={"knowledge_base_id": kb_id}
+    ).json()["id"]
+
+    db_session.add(
+        Message(conversation_id=uuid.UUID(conversation_id), role="user", content="Когда отпуск?")
+    )
+    db_session.add(
+        Message(conversation_id=uuid.UUID(conversation_id), role="assistant", content="Ежегодно.")
+    )
+    db_session.commit()
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(dependencies, "get_vector_store", lambda: FakeVectorStore([_hit()]))
+
+    rewritten_query = "Что если отпуск просрочен?"
+    final_answer = json.dumps(
+        {"answer": "Ответ на переписанный вопрос [1].", "has_answer": True, "citations": [1]}
+    )
+
+    class ConversationAwareLLM(LocalLLMProvider):
+        """Различает запрос переписывания и запрос генерации по системному
+        промпту — так же, как реально ведут себя два разных вызова модели."""
+
+        name = "fake"
+
+        def generate(self, request: GenerationRequest, model: str) -> GenerationResult:
+            if "переписываешь вопрос" in request.system:
+                text = json.dumps({"rewritten": rewritten_query})
+            else:
+                text = final_answer
+            return GenerationResult(text=text, model=model, provider=self.name, latency_ms=1)
+
+        def health_check(self) -> bool:
+            return True
+
+        def list_models(self) -> list[ModelInfo]:
+            return [ModelInfo(name="qwen3:4b", provider=self.name)]
+
+    monkeypatch.setattr(dependencies, "get_llm_provider", lambda: ConversationAwareLLM())
+
+    response = client.post(
+        "/chat",
+        json={
+            "question": "А если он просрочен?",
+            "knowledge_base_id": kb_id,
+            "conversation_id": conversation_id,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["rewritten_query"] == rewritten_query
+    assert body["answer"] == "Ответ на переписанный вопрос [1]."
