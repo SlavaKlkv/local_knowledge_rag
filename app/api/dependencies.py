@@ -13,6 +13,7 @@ from app.rag.context_builder import ContextBuilder
 from app.rag.embeddings import EmbeddingProvider, OllamaEmbeddingProvider
 from app.rag.generation import AnswerGenerator
 from app.rag.indexer import DocumentIndexer
+from app.rag.reranker import CrossEncoderReranker, NoOpReranker, Reranker
 from app.rag.retriever import DenseRetriever
 from app.rag.vector_store import QdrantVectorStore
 
@@ -53,6 +54,16 @@ def get_retriever() -> DenseRetriever:
 
 def get_indexer() -> DocumentIndexer:
     return DocumentIndexer(get_embedding_provider(), get_vector_store())
+
+
+@lru_cache
+def get_reranker() -> Reranker:
+    # Флаг конфигурации переключает реализацию, а не ветвление в вызывающем
+    # коде: retriever/generation всегда работают через единый интерфейс.
+    settings = get_settings()
+    if not settings.rerank_enabled:
+        return NoOpReranker()
+    return CrossEncoderReranker(model_name=settings.reranker_model)
 
 
 def get_context_builder() -> ContextBuilder:
