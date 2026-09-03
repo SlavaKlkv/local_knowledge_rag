@@ -8,8 +8,16 @@ from pathlib import Path
 from app.api.storage import DocumentStorage
 from app.core.config import get_settings
 from app.core.errors import ValidationError
+from app.hardware.detector import HardwareDetector
+from app.hardware.profiles import (
+    HardwareProfile,
+    ProfileRecommender,
+    get_profile_definition,
+)
 from app.llm.base import LocalLLMProvider
 from app.llm.ollama import OllamaProvider
+from app.llm.ring import ModelRing
+from app.llm.ring_provider import RingLLMProvider
 from app.llm.vllm import VLLMProvider
 from app.rag.context_builder import ContextBuilder
 from app.rag.embeddings import EmbeddingProvider, OllamaEmbeddingProvider
@@ -47,7 +55,7 @@ def get_vector_store() -> QdrantVectorStore:
 
 
 @lru_cache
-def get_llm_provider() -> LocalLLMProvider:
+def get_base_llm_provider() -> LocalLLMProvider:
     # LLM модель ≠ inference runtime: выбор провайдера не меняет остальной
     # pipeline, только то, куда уходит запрос генерации.
     provider = get_settings().inference_provider
@@ -58,6 +66,47 @@ def get_llm_provider() -> LocalLLMProvider:
     raise ValidationError(
         f"Неизвестный INFERENCE_PROVIDER '{provider}'. Доступны: ollama, vllm"
     )
+
+
+@lru_cache
+def get_active_profile() -> HardwareProfile:
+    """Аппаратный профиль: ручное переопределение либо рекомендация детектора.
+
+    Определяется один раз за время жизни процесса — оборудование машины не
+    меняется на лету, а повторная детекция на каждый запрос не нужна.
+    """
+    override = get_settings().hardware_profile_override
+    if override:
+        try:
+            return HardwareProfile(override)
+        except ValueError as exc:
+            raise ValidationError(
+                f"Неизвестный HARDWARE_PROFILE_OVERRIDE '{override}'. "
+                f"Доступны: {', '.join(p.value for p in HardwareProfile)}"
+            ) from exc
+    hardware = HardwareDetector().detect()
+    return ProfileRecommender().recommend(hardware)
+
+
+@lru_cache
+def get_llm_provider() -> LocalLLMProvider:
+    # Флаг конфигурации переключает реализацию, а не ветвление в вызывающем
+    # коде: AnswerGenerator/QueryRewriter всегда работают через единый
+    # интерфейс LocalLLMProvider и не знают, кольцо за ним или одна модель.
+    base_provider = get_base_llm_provider()
+    if not get_settings().model_ring_enabled:
+        return base_provider
+
+    settings = get_settings()
+    ring = ModelRing(
+        base_provider,
+        get_profile_definition(get_active_profile()).ring,
+        max_attempts=settings.model_ring_max_attempts,
+        timeout_budget_s=settings.model_ring_timeout_budget_s,
+        cooldown_s=settings.model_ring_cooldown_s,
+        failure_threshold=settings.model_ring_failure_threshold,
+    )
+    return RingLLMProvider(ring)
 
 
 @lru_cache

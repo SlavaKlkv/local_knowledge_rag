@@ -45,6 +45,12 @@ class Settings(BaseSettings):
 
     hybrid_retrieval_enabled: bool = True
 
+    model_ring_enabled: bool = True
+    model_ring_max_attempts: int = Field(default=3, gt=0)
+    model_ring_timeout_budget_s: float = Field(default=45.0, gt=0)
+    model_ring_cooldown_s: float = Field(default=60.0, gt=0)
+    model_ring_failure_threshold: int = Field(default=2, gt=0)
+
     @property
     def database_url(self) -> str:
         return (
