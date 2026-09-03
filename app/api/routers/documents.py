@@ -1,7 +1,8 @@
 """Загрузка и жизненный цикл документов.
 
-Индексация выполняется синхронно в V1 — фоновые задачи (Celery) появляются
-в V4. Роутер уже отделён от механизма индексации, чтобы замена была локальной.
+Индексация уходит в Celery: парсинг и эмбеддинги занимают минуты, держать
+на них открытым HTTP-запрос нельзя. Загрузка отвечает 202 и идентификатором
+задачи, а прогресс виден через статус документа и /indexing-jobs.
 """
 
 from __future__ import annotations
@@ -17,24 +18,31 @@ from app.api.dependencies import (
     get_document_storage,
     get_indexer,
 )
-from app.api.schemas import DocumentRead
+from app.api.schemas import DocumentRead, DocumentUploadResponse
 from app.api.storage import DocumentStorage, validate_upload
 from app.core.errors import NotFoundError
-from app.db.models import Document, DocumentStatus, DocumentVersion, KnowledgeBase
+from app.db.models import (
+    Document,
+    DocumentStatus,
+    DocumentVersion,
+    IndexingJob,
+    JobStatus,
+    KnowledgeBase,
+)
 from app.db.session import get_db
 from app.rag.indexer import DocumentIndexer
+from app.workers.tasks import index_document_task
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.post("", response_model=DocumentRead, status_code=201)
+@router.post("", response_model=DocumentUploadResponse, status_code=202)
 def upload_document(
     knowledge_base_id: uuid.UUID,
     file: UploadFile,
     db: Session = Depends(get_db),
     storage: DocumentStorage = Depends(get_document_storage),
-    indexer: DocumentIndexer = Depends(get_indexer),
-) -> Document:
+) -> DocumentUploadResponse:
     kb = db.get(KnowledgeBase, knowledge_base_id)
     if kb is None:
         raise NotFoundError(f"База знаний {knowledge_base_id} не найдена")
@@ -51,40 +59,29 @@ def upload_document(
         content_type=file.content_type or "application/octet-stream",
         size_bytes=len(content),
         checksum=checksum,
-        status=DocumentStatus.PARSING,
+        status=DocumentStatus.UPLOADED,
     )
     db.add(document)
     db.flush()
 
-    try:
-        result = indexer.index(
-            path,
-            document_id=str(document.id),
-            knowledge_base_id=str(knowledge_base_id),
-            document_name=safe_name,
-        )
-    except Exception as exc:  # noqa: BLE001 - ошибка индексации фиксируется в статусе
-        document.status = DocumentStatus.FAILED
-        document.error = str(exc)
-        db.commit()
-        db.refresh(document)
-        return document
-
-    document.status = DocumentStatus.READY
+    # Версия с путём к файлу создаётся сразу, до индексации: иначе после
+    # сбоя путь к загруженному файлу потерян и переиндексировать нечего.
     db.add(
         DocumentVersion(
             document_id=document.id,
             version=1,
             checksum=checksum,
             storage_path=str(path),
-            chunk_count=result.chunk_count,
-            embedding_model=result.embedding_version,
-            chunking_strategy=result.chunking_strategy,
         )
     )
+    job = IndexingJob(document_id=document.id, status=JobStatus.PENDING)
+    db.add(job)
     db.commit()
     db.refresh(document)
-    return document
+    db.refresh(job)
+
+    index_document_task.delay(str(document.id), str(job.id))
+    return DocumentUploadResponse(document=DocumentRead.model_validate(document), job_id=job.id)
 
 
 @router.get("", response_model=list[DocumentRead])
