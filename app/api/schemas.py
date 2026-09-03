@@ -49,6 +49,18 @@ class IndexingJobRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DocumentVersionRead(BaseModel):
+    id: uuid.UUID
+    version: int
+    checksum: str
+    chunk_count: int
+    embedding_model: str | None = None
+    chunking_strategy: str | None = None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DocumentUploadResponse(BaseModel):
     """Загрузка принята: документ создан, индексация идёт в фоне."""
 

@@ -18,9 +18,9 @@ from app.api.dependencies import (
     get_document_storage,
     get_indexer,
 )
-from app.api.schemas import DocumentRead, DocumentUploadResponse
+from app.api.schemas import DocumentRead, DocumentUploadResponse, DocumentVersionRead
 from app.api.storage import DocumentStorage, validate_upload
-from app.core.errors import NotFoundError
+from app.core.errors import NotFoundError, ValidationError
 from app.db.models import (
     Document,
     DocumentStatus,
@@ -94,6 +94,115 @@ def list_documents(
         .order_by(Document.created_at)
     )
     return list(db.scalars(stmt))
+
+
+@router.post(
+    "/{document_id}/reindex", response_model=DocumentUploadResponse, status_code=202
+)
+def reindex_document(
+    document_id: uuid.UUID, db: Session = Depends(get_db)
+) -> DocumentUploadResponse:
+    """Переиндексирует документ в текущей версии.
+
+    Нужен, когда сменилась embedding-модель или стратегия чанкинга:
+    содержимое документа то же, поэтому новая версия не создаётся.
+    """
+    document = db.get(Document, document_id)
+    if document is None:
+        raise NotFoundError(f"Документ {document_id} не найден")
+
+    if _current_version(db, document) is None:
+        raise ValidationError(
+            "У документа нет сохранённой версии с файлом — переиндексировать нечего"
+        )
+
+    document.status = DocumentStatus.UPLOADED
+    document.error = None
+    job = IndexingJob(document_id=document.id, status=JobStatus.PENDING)
+    db.add(job)
+    db.commit()
+    db.refresh(document)
+    db.refresh(job)
+
+    index_document_task.delay(str(document.id), str(job.id))
+    return DocumentUploadResponse(
+        document=DocumentRead.model_validate(document), job_id=job.id
+    )
+
+
+@router.post(
+    "/{document_id}/versions", response_model=DocumentUploadResponse, status_code=202
+)
+def upload_new_version(
+    document_id: uuid.UUID,
+    file: UploadFile,
+    db: Session = Depends(get_db),
+    storage: DocumentStorage = Depends(get_document_storage),
+) -> DocumentUploadResponse:
+    """Загружает новую версию документа.
+
+    Векторы предыдущей версии удаляет задача индексации — уже после
+    успешной записи новых, иначе сбой оставил бы документ без индекса.
+    """
+    document = db.get(Document, document_id)
+    if document is None:
+        raise NotFoundError(f"Документ {document_id} не найден")
+
+    content = file.file.read()
+    safe_name = validate_upload(
+        file.filename or "", len(content), ALLOWED_UPLOAD_EXTENSIONS
+    )
+    path, checksum = storage.save(content, safe_name)
+
+    document.current_version += 1
+    document.filename = safe_name
+    document.content_type = file.content_type or document.content_type
+    document.size_bytes = len(content)
+    document.checksum = checksum
+    document.status = DocumentStatus.UPLOADED
+    document.error = None
+
+    db.add(
+        DocumentVersion(
+            document_id=document.id,
+            version=document.current_version,
+            checksum=checksum,
+            storage_path=str(path),
+        )
+    )
+    job = IndexingJob(document_id=document.id, status=JobStatus.PENDING)
+    db.add(job)
+    db.commit()
+    db.refresh(document)
+    db.refresh(job)
+
+    index_document_task.delay(str(document.id), str(job.id))
+    return DocumentUploadResponse(
+        document=DocumentRead.model_validate(document), job_id=job.id
+    )
+
+
+@router.get("/{document_id}/versions", response_model=list[DocumentVersionRead])
+def list_versions(
+    document_id: uuid.UUID, db: Session = Depends(get_db)
+) -> list[DocumentVersion]:
+    document = db.get(Document, document_id)
+    if document is None:
+        raise NotFoundError(f"Документ {document_id} не найден")
+    stmt = (
+        select(DocumentVersion)
+        .where(DocumentVersion.document_id == document_id)
+        .order_by(DocumentVersion.version)
+    )
+    return list(db.scalars(stmt))
+
+
+def _current_version(db: Session, document: Document) -> DocumentVersion | None:
+    stmt = select(DocumentVersion).where(
+        DocumentVersion.document_id == document.id,
+        DocumentVersion.version == document.current_version,
+    )
+    return db.scalars(stmt).first()
 
 
 @router.get("/{document_id}", response_model=DocumentRead)

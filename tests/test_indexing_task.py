@@ -186,3 +186,71 @@ def test_document_without_a_version_fails_with_a_clear_error(
     assert result == JobStatus.FAILED
     with session_factory() as db:
         assert "версия документа" in db.get(Document, uuid.UUID(document_id)).error
+
+
+def test_second_version_asks_to_delete_the_previous_one(
+    monkeypatch, session_factory, tmp_path, prepared
+):
+    """После переиндексации не должно оставаться stale-векторов."""
+    document_id, _ = prepared
+    source = tmp_path / "policy_v2.txt"
+    source.write_text("Обновлённый текст политики.", encoding="utf-8")
+
+    with session_factory() as db:
+        document = db.get(Document, uuid.UUID(document_id))
+        document.current_version = 2
+        db.add(
+            DocumentVersion(
+                document_id=document.id,
+                version=2,
+                checksum="z" * 64,
+                storage_path=str(source),
+            )
+        )
+        job = IndexingJob(document_id=document.id, status=JobStatus.PENDING)
+        db.add(job)
+        db.commit()
+        job_id = str(job.id)
+
+    indexer = FakeIndexer()
+    _run(monkeypatch, indexer, document_id, job_id)
+
+    call = indexer.calls[0]
+    assert call["kwargs"]["version"] == 2
+    assert call["kwargs"]["previous_version"] == 1
+    assert call["path"].name == "policy_v2.txt"
+
+
+def test_second_version_metadata_is_written_to_its_own_row(
+    monkeypatch, session_factory, tmp_path, prepared
+):
+    document_id, _ = prepared
+    source = tmp_path / "policy_v2.txt"
+    source.write_text("Обновлённый текст.", encoding="utf-8")
+
+    with session_factory() as db:
+        document = db.get(Document, uuid.UUID(document_id))
+        document.current_version = 2
+        db.add(
+            DocumentVersion(
+                document_id=document.id,
+                version=2,
+                checksum="z" * 64,
+                storage_path=str(source),
+            )
+        )
+        job = IndexingJob(document_id=document.id, status=JobStatus.PENDING)
+        db.add(job)
+        db.commit()
+        job_id = str(job.id)
+
+    _run(monkeypatch, FakeIndexer(), document_id, job_id)
+
+    with session_factory() as db:
+        versions = (
+            db.query(DocumentVersion)
+            .order_by(DocumentVersion.version)
+            .all()
+        )
+        assert versions[0].chunk_count == 0  # первая версия не тронута
+        assert versions[1].chunk_count == 7
