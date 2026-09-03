@@ -32,6 +32,9 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = [
+    "B008",  # Depends(...) в значениях по умолчанию — идиома FastAPI
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
