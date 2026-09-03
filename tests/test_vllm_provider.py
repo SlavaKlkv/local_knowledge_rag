@@ -151,43 +151,76 @@ def test_list_models_raises_inference_error_when_unreachable(monkeypatch, provid
         provider.list_models()
 
 
+def _clear_provider_caches():
+    from app.api import dependencies
+
+    dependencies.get_base_llm_provider.cache_clear()
+    dependencies.get_llm_provider.cache_clear()
+    dependencies.get_settings.cache_clear()
+
+
 def test_dependency_selects_ollama_by_default(monkeypatch):
     from app.api import dependencies
     from app.llm.ollama import OllamaProvider
 
-    dependencies.get_llm_provider.cache_clear()
+    _clear_provider_caches()
     monkeypatch.setenv("INFERENCE_PROVIDER", "ollama")
     dependencies.get_settings.cache_clear()
 
-    assert isinstance(dependencies.get_llm_provider(), OllamaProvider)
+    assert isinstance(dependencies.get_base_llm_provider(), OllamaProvider)
 
-    dependencies.get_llm_provider.cache_clear()
-    dependencies.get_settings.cache_clear()
+    _clear_provider_caches()
 
 
 def test_dependency_selects_vllm_when_configured(monkeypatch):
     from app.api import dependencies
 
-    dependencies.get_llm_provider.cache_clear()
+    _clear_provider_caches()
     monkeypatch.setenv("INFERENCE_PROVIDER", "vllm")
     dependencies.get_settings.cache_clear()
 
-    assert isinstance(dependencies.get_llm_provider(), VLLMProvider)
+    assert isinstance(dependencies.get_base_llm_provider(), VLLMProvider)
 
-    dependencies.get_llm_provider.cache_clear()
-    dependencies.get_settings.cache_clear()
+    _clear_provider_caches()
 
 
 def test_dependency_rejects_unknown_provider(monkeypatch):
     from app.api import dependencies
     from app.core.errors import ValidationError
 
-    dependencies.get_llm_provider.cache_clear()
+    _clear_provider_caches()
     monkeypatch.setenv("INFERENCE_PROVIDER", "something-else")
     dependencies.get_settings.cache_clear()
 
     with pytest.raises(ValidationError, match="Неизвестный INFERENCE_PROVIDER"):
-        dependencies.get_llm_provider()
+        dependencies.get_base_llm_provider()
 
-    dependencies.get_llm_provider.cache_clear()
+    _clear_provider_caches()
+
+
+def test_llm_provider_is_ring_backed_by_default(monkeypatch):
+    from app.api import dependencies
+    from app.llm.ring_provider import RingLLMProvider
+
+    _clear_provider_caches()
+    monkeypatch.setenv("MODEL_RING_ENABLED", "true")
     dependencies.get_settings.cache_clear()
+    dependencies.get_active_profile.cache_clear()
+
+    assert isinstance(dependencies.get_llm_provider(), RingLLMProvider)
+
+    _clear_provider_caches()
+    dependencies.get_active_profile.cache_clear()
+
+
+def test_llm_provider_is_the_base_provider_when_ring_disabled(monkeypatch):
+    from app.api import dependencies
+    from app.llm.ollama import OllamaProvider
+
+    _clear_provider_caches()
+    monkeypatch.setenv("MODEL_RING_ENABLED", "false")
+    dependencies.get_settings.cache_clear()
+
+    assert isinstance(dependencies.get_llm_provider(), OllamaProvider)
+
+    _clear_provider_caches()

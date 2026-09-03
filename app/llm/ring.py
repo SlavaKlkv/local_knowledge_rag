@@ -78,6 +78,10 @@ class ModelRing:
     def members(self) -> list[RingMember]:
         return list(self._members)
 
+    @property
+    def provider(self) -> LocalLLMProvider:
+        return self._provider
+
     def generate(self, request: GenerationRequest) -> RingGenerationResult:
         started = self._clock()
         attempts = 0
