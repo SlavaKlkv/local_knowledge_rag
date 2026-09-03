@@ -24,9 +24,14 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
 
     ollama_url: str = "http://localhost:11434"
+    vllm_url: str = "http://localhost:8000"
     llm_model: str = "qwen3:4b"
     embedding_model: str = "nomic-embed-text"
     embedding_dim: int = Field(default=768, gt=0)
+
+    # Пользовательское переопределение профиля: детектор только
+    # рекомендует, а не решает окончательно.
+    hardware_profile_override: str | None = None
 
     inference_timeout_s: float = 120.0
 
