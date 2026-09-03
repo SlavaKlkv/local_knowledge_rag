@@ -6,14 +6,14 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_retriever
 from app.api.schemas import SearchHit, SearchRequest, SearchResponse
-from app.rag.retriever import DenseRetriever, RetrievalQuery
+from app.rag.retriever import RetrievalQuery, Retriever
 
 router = APIRouter(prefix="/search", tags=["search"])
 
 
 @router.post("", response_model=SearchResponse)
 def search(
-    payload: SearchRequest, retriever: DenseRetriever = Depends(get_retriever)
+    payload: SearchRequest, retriever: Retriever = Depends(get_retriever)
 ) -> SearchResponse:
     hits = retriever.retrieve(
         RetrievalQuery(

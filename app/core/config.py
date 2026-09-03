@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     rerank_candidates: int = Field(default=30, gt=0)
     rerank_top_k: int = Field(default=8, gt=0)
 
+    hybrid_retrieval_enabled: bool = True
+
     @property
     def database_url(self) -> str:
         return (

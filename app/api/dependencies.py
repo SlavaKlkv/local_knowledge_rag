@@ -15,7 +15,12 @@ from app.rag.generation import AnswerGenerator
 from app.rag.indexer import DocumentIndexer
 from app.rag.query_rewriting import QueryRewriter
 from app.rag.reranker import CrossEncoderReranker, NoOpReranker, Reranker
-from app.rag.retriever import DenseRetriever
+from app.rag.retriever import (
+    DenseRetriever,
+    HybridRetriever,
+    Retriever,
+    SparseRetriever,
+)
 from app.rag.vector_store import QdrantVectorStore
 
 ALLOWED_UPLOAD_EXTENSIONS = (
@@ -49,8 +54,20 @@ def get_document_storage() -> DocumentStorage:
     return DocumentStorage(Path("storage/documents"))
 
 
-def get_retriever() -> DenseRetriever:
+def get_dense_retriever() -> DenseRetriever:
     return DenseRetriever(get_embedding_provider(), get_vector_store())
+
+
+def get_sparse_retriever() -> SparseRetriever:
+    return SparseRetriever(get_vector_store())
+
+
+def get_retriever() -> Retriever:
+    # Флаг конфигурации переключает стратегию, а не ветвление в вызывающем
+    # коде: ContextBuilder и /chat всегда работают через единый интерфейс.
+    if not get_settings().hybrid_retrieval_enabled:
+        return get_dense_retriever()
+    return HybridRetriever(get_dense_retriever(), get_sparse_retriever())
 
 
 def get_indexer() -> DocumentIndexer:

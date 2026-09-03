@@ -1,18 +1,24 @@
 """Работа с Qdrant: индексация чанков и поиск по векторам.
 
 Qdrant хранит вектор и payload, достаточный для фильтрации и цитирования,
-без обращения к PostgreSQL на горячем пути поиска.
+без обращения к PostgreSQL на горячем пути поиска. Каждая точка несёт два
+именованных вектора — "dense" (embedding-модель) и "sparse" (лексический,
+см. app/rag/sparse.py) — это то, что делает возможным hybrid retrieval.
 """
 
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
 
 from app.core.config import get_settings
+from app.rag.sparse import SparseVector
+
+_DENSE_VECTOR_NAME = "dense"
+_SPARSE_VECTOR_NAME = "sparse"
 
 
 @dataclass(slots=True)
@@ -25,6 +31,7 @@ class ChunkPoint:
     chunk_index: int
     text: str
     vector: list[float]
+    sparse_vector: SparseVector = field(default_factory=lambda: SparseVector([], []))
     version: int = 1
     page: int | None = None
     section: str | None = None
@@ -71,14 +78,17 @@ class QdrantVectorStore:
         if not self._client.collection_exists(self._collection):
             self._client.create_collection(
                 collection_name=self._collection,
-                vectors_config=qm.VectorParams(
-                    size=self._dimension, distance=qm.Distance.COSINE
-                ),
+                vectors_config={
+                    _DENSE_VECTOR_NAME: qm.VectorParams(
+                        size=self._dimension, distance=qm.Distance.COSINE
+                    ),
+                },
+                sparse_vectors_config={_SPARSE_VECTOR_NAME: qm.SparseVectorParams()},
             )
-        for field in ("knowledge_base_id", "document_id"):
+        for field_name in ("knowledge_base_id", "document_id"):
             self._client.create_payload_index(
                 collection_name=self._collection,
-                field_name=field,
+                field_name=field_name,
                 field_schema=qm.PayloadSchemaType.KEYWORD,
                 wait=True,
             )
@@ -89,7 +99,13 @@ class QdrantVectorStore:
         points = [
             qm.PointStruct(
                 id=chunk.chunk_id,
-                vector=chunk.vector,
+                vector={
+                    _DENSE_VECTOR_NAME: chunk.vector,
+                    _SPARSE_VECTOR_NAME: qm.SparseVector(
+                        indices=chunk.sparse_vector.indices,
+                        values=chunk.sparse_vector.values,
+                    ),
+                },
                 payload={
                     "document_id": chunk.document_id,
                     "knowledge_base_id": chunk.knowledge_base_id,
@@ -115,21 +131,36 @@ class QdrantVectorStore:
         score_threshold: float | None = None,
         document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        must: list[qm.Condition] = [
-            qm.FieldCondition(
-                key="knowledge_base_id", match=qm.MatchValue(value=knowledge_base_id)
-            )
-        ]
-        if document_ids:
-            must.append(
-                qm.FieldCondition(key="document_id", match=qm.MatchAny(any=document_ids))
-            )
         response = self._client.query_points(
             collection_name=self._collection,
             query=vector,
+            using=_DENSE_VECTOR_NAME,
             limit=top_k,
-            query_filter=qm.Filter(must=must),
+            query_filter=_build_filter(knowledge_base_id, document_ids),
             score_threshold=score_threshold,
+            with_payload=True,
+        )
+        return [_to_retrieved(point) for point in response.points]
+
+    def sparse_search(
+        self,
+        sparse_vector: SparseVector,
+        knowledge_base_id: str,
+        top_k: int = 10,
+        document_ids: list[str] | None = None,
+    ) -> list[RetrievedChunk]:
+        if not sparse_vector.indices:
+            # Пустой sparse-вектор (например, вопрос из одних стоп-слов
+            # в хешированном пространстве) не даёт Qdrant искать что-либо.
+            return []
+        response = self._client.query_points(
+            collection_name=self._collection,
+            query=qm.SparseVector(
+                indices=sparse_vector.indices, values=sparse_vector.values
+            ),
+            using=_SPARSE_VECTOR_NAME,
+            limit=top_k,
+            query_filter=_build_filter(knowledge_base_id, document_ids),
             with_payload=True,
         )
         return [_to_retrieved(point) for point in response.points]
@@ -167,6 +198,21 @@ class QdrantVectorStore:
         return self._client.count(
             self._collection, count_filter=query_filter, exact=True
         ).count
+
+
+def _build_filter(
+    knowledge_base_id: str, document_ids: list[str] | None
+) -> qm.Filter:
+    must: list[qm.Condition] = [
+        qm.FieldCondition(
+            key="knowledge_base_id", match=qm.MatchValue(value=knowledge_base_id)
+        )
+    ]
+    if document_ids:
+        must.append(
+            qm.FieldCondition(key="document_id", match=qm.MatchAny(any=document_ids))
+        )
+    return qm.Filter(must=must)
 
 
 def build_chunk_id(document_id: str, version: int, chunk_index: int) -> str:
