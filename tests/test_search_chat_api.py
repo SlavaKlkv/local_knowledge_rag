@@ -39,6 +39,11 @@ class FakeVectorStore:
     def search(self, **kwargs):
         return self.hits
 
+    def sparse_search(self, **kwargs):
+        # Хватает для проверки маршрутизации и контрактов API — RRF-фьюжн
+        # на реальных dense/sparse скорах покрыт отдельно на HybridRetriever.
+        return self.hits
+
 
 class FakeLLM(LocalLLMProvider):
     name = "fake"

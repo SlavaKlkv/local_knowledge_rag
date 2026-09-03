@@ -112,6 +112,16 @@ def test_embeddings_are_computed_in_batches(document):
     assert len(embeddings.batches) >= 2
 
 
+def test_indexed_points_carry_sparse_vectors_for_hybrid_search(document):
+    store = FakeStore()
+
+    DocumentIndexer(FakeEmbeddings(), store).index(
+        document, document_id="doc-1", knowledge_base_id="kb-1"
+    )
+
+    assert all(point.sparse_vector.indices for point in store.points)
+
+
 def test_removing_a_document_clears_all_its_vectors(document):
     store = FakeStore()
 

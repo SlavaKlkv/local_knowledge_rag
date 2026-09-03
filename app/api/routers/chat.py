@@ -29,7 +29,7 @@ from app.rag.conversation_history import render_history
 from app.rag.generation import AnswerGenerator
 from app.rag.query_rewriting import QueryRewriter
 from app.rag.reranker import Reranker
-from app.rag.retriever import DenseRetriever, RetrievalQuery
+from app.rag.retriever import RetrievalQuery, Retriever
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -52,7 +52,7 @@ def _load_conversation(payload: ChatRequest, db: Session) -> Conversation | None
 def chat(
     payload: ChatRequest,
     db: Session = Depends(get_db),
-    retriever: DenseRetriever = Depends(get_retriever),
+    retriever: Retriever = Depends(get_retriever),
     reranker: Reranker = Depends(get_reranker),
     context_builder: ContextBuilder = Depends(get_context_builder),
     generator: AnswerGenerator = Depends(get_answer_generator),
