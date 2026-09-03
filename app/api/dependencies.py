@@ -16,6 +16,7 @@ from app.hardware.profiles import (
 )
 from app.llm.base import LocalLLMProvider
 from app.llm.ollama import OllamaProvider
+from app.llm.provisioning import ModelProvisioner
 from app.llm.ring import ModelRing
 from app.llm.ring_provider import RingLLMProvider
 from app.llm.vllm import VLLMProvider
@@ -107,6 +108,12 @@ def get_llm_provider() -> LocalLLMProvider:
         failure_threshold=settings.model_ring_failure_threshold,
     )
     return RingLLMProvider(ring)
+
+
+@lru_cache
+def get_model_provisioner() -> ModelProvisioner:
+    # Кэшируется на процесс: прогресс запущенных загрузок живёт в нём.
+    return ModelProvisioner(get_base_llm_provider())
 
 
 @lru_cache
