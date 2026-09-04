@@ -30,7 +30,61 @@ services:
     volumes:
       - redis_data:/data
 
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      redis:
+        condition: service_started
+    environment: &app_env
+      POSTGRES_HOST: postgres
+      # Внутри сети Compose обращаемся к штатному порту контейнера,
+      # а не к проброшенному на хост.
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-local_knowledge_rag}
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      QDRANT_URL: http://qdrant:6333
+      REDIS_URL: redis://redis:6379/0
+      # Ollama остаётся на хосте: в контейнере на macOS нет доступа к
+      # Metal, а на Linux — к GPU без отдельной настройки.
+      #
+      # Имя переменной намеренно отличается от OLLAMA_URL: в .env лежит
+      # адрес для локального запуска (localhost), и внутри контейнера он
+      # указывал бы на сам контейнер.
+      OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY обязателен для запуска}
+    volumes:
+      # Общий том с воркером: файл сохраняет API, а читает его воркер.
+      - documents:/app/storage/documents
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment: *app_env
+    volumes:
+      - documents:/app/storage/documents
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
+
 volumes:
   postgres_data:
   qdrant_data:
   redis_data:
+  documents:

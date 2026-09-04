@@ -7,7 +7,7 @@
 
 Кольцевой fallback между семействами (Qwen → Gemma → Llama → Qwen → ...)
 непрерывен на уровне сервиса — здесь описан только состав кольца для
-выбранного профиля; порядок обхода реализует HealthAwareModelRing (V3).
+выбранного профиля; порядок обхода реализует HealthAwareModelRing (Stage 3).
 """
 
 from __future__ import annotations

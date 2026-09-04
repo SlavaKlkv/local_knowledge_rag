@@ -20,7 +20,8 @@
 - **Hybrid retrieval**: dense-эмбеддинги ловят смысловую близость, sparse-векторы —
   точные лексические совпадения (номера статей, коды); объединяются через
   Reciprocal Rank Fusion.
-- **Локальный cross-encoder reranker** сужает 20–30 кандидатов до лучших 5–10.
+- **Локальный cross-encoder reranker** сужает 20–30 кандидатов до лучших 5–10
+  (опциональный extra: базовая установка остаётся лёгкой).
 - **Grounded-ответы с citations**: модель обязана ссылаться на номера фрагментов,
   ссылки на несуществующие фрагменты отбрасываются, при нехватке данных
   возвращается честное «нет ответа», а не догадка.
@@ -44,6 +45,20 @@ Redis, Ollama / vLLM, sentence-transformers, Docker Compose, pytest, ruff.
 
 ## Быстрый старт
 
+### Через Docker Compose
+
+Поднимает всё сразу — приложение, воркер, PostgreSQL, Qdrant и Redis:
+
+```bash
+cp .env.example .env
+SECRET_KEY=$(openssl rand -hex 32) docker compose up -d
+```
+
+Ollama остаётся на хосте: в контейнере нет доступа к Metal на macOS и к GPU
+на Linux без отдельной настройки.
+
+### Локально
+
 ```bash
 cp .env.example .env
 docker compose up -d postgres qdrant redis
@@ -51,6 +66,10 @@ uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload
 ```
+
+Reranking по умолчанию не устанавливается: cross-encoder тянет torch
+(~2.5 ГБ). Если он нужен — `uv sync --extra reranking`, иначе выключите
+его через `RERANK_ENABLED=false`.
 
 Индексация документов идёт в фоне, поэтому нужен ещё воркер — в отдельном
 терминале:
@@ -128,8 +147,9 @@ uv run python -m scripts.evaluate_retrieval docs/evaluation/example_dataset.json
 
 ## Статус
 
-Реализованы этапы V1–V3 (ядро RAG, продвинутый retrieval, локальная
-inference-платформа). Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
+Реализованы Stage 1–4 (ядро RAG, продвинутый retrieval, локальная
+inference-платформа, production-бэкенд); Stage 5 начат — метрики retrieval
+уже считаются. Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
 
 ## Лицензия
 

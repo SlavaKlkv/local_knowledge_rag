@@ -51,7 +51,9 @@ class CrossEncoderReranker(Reranker):
                 from sentence_transformers import CrossEncoder
             except ImportError as exc:
                 raise InferenceError(
-                    "sentence-transformers не установлен: локальный reranker недоступен"
+                    "sentence-transformers не установлен: локальный reranker "
+                    "недоступен. Установите extra 'reranking' или выключите "
+                    "reranking через RERANK_ENABLED=false"
                 ) from exc
             try:
                 self._model = CrossEncoder(self._model_name)
