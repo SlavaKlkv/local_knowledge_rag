@@ -149,6 +149,13 @@ uv run python -m scripts.evaluate_retrieval docs/evaluation/example_dataset.json
 uv run python -m scripts.evaluate_rag docs/evaluation/example_dataset.json --top-k 5
 ```
 
+Модели кольца сравниваются между собой по качеству и скорости на одном
+датасете:
+
+```bash
+uv run python -m scripts.benchmark_models docs/evaluation/example_dataset.json
+```
+
 Формат датасета, смысл каждой метрики и результаты прогонов —
 в [docs/evaluation/README.md](docs/evaluation/README.md).
 

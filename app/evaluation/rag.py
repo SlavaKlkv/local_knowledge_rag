@@ -81,6 +81,9 @@ class RAGReport:
     citation_recall: float
     groundedness: float
     unsupported_numbers_rate: float
+    # Латентности всех примеров прогона: агрегаты считает бенчмарк, отчёту
+    # достаточно сохранить сырые значения, чтобы не терять хвост распределения.
+    latencies_ms: tuple[int, ...] = ()
     correct_abstention_rate: float | None = None
     hallucination_rate: float | None = None
     per_example: list[AnswerScores] = field(default_factory=list)
@@ -112,8 +115,11 @@ class RAGEvaluator:
             raise ValidationError("Датасет пуст: оценивать нечего")
 
         scores: list[AnswerScores] = []
+        latencies: list[int] = []
         for example in dataset:
             answered = self._answerer.answer(example.question, example.knowledge_base_id)
+            if answered.answer.latency_ms is not None:
+                latencies.append(answered.answer.latency_ms)
             scores.append(
                 score_answer(answered.answer, example, cited_texts=answered.cited_texts)
             )
@@ -133,6 +139,7 @@ class RAGEvaluator:
             unsupported_numbers_rate=_mean(
                 bool(s.unsupported_numbers) for s in answerable
             ),
+            latencies_ms=tuple(latencies),
             correct_abstention_rate=(
                 _mean(s.correct_abstention for s in unanswerable) if unanswerable else None
             ),
