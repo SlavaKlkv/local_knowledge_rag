@@ -11,6 +11,7 @@ from app.api.routers import (
     indexing_jobs,
     inference,
     knowledge_bases,
+    metrics,
     search,
     system,
 )
@@ -38,6 +39,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(system.router)
+    app.include_router(metrics.router)
     app.include_router(inference.router)
     app.include_router(knowledge_bases.router)
     app.include_router(documents.router)
