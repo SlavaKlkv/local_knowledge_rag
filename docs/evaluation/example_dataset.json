@@ -1,0 +1,28 @@
+{
+  "examples": [
+    {
+      "id": "vacation-days",
+      "question": "Сколько дней основного отпуска положено сотруднику?",
+      "knowledge_base_id": "ЗАМЕНИТЬ-НА-ID-БАЗЫ-ЗНАНИЙ",
+      "relevant": [
+        {"document_id": "ЗАМЕНИТЬ-НА-ID-ДОКУМЕНТА", "grade": 3}
+      ],
+      "expected_answer": "28 календарных дней.",
+      "tags": ["hr"]
+    },
+    {
+      "id": "trip-report-deadline",
+      "question": "В какой срок сдаётся авансовый отчёт после командировки?",
+      "knowledge_base_id": "ЗАМЕНИТЬ-НА-ID-БАЗЫ-ЗНАНИЙ",
+      "relevant": ["ЗАМЕНИТЬ-НА-ID-ДОКУМЕНТА"],
+      "tags": ["finance"]
+    },
+    {
+      "id": "no-answer-parking",
+      "question": "Компенсирует ли компания парковку у офиса?",
+      "knowledge_base_id": "ЗАМЕНИТЬ-НА-ID-БАЗЫ-ЗНАНИЙ",
+      "relevant": [],
+      "tags": ["no-answer"]
+    }
+  ]
+}
