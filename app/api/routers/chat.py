@@ -88,11 +88,14 @@ def chat(
         # Кандидатов берём с запасом относительно итогового top_k: reranker
         # работает точнее dense-поиска именно на более широком наборе.
         retrieval_started = time.perf_counter()
+        # Порог отсекает нерелевантное там, где скор ещё в своей шкале:
+        # после RRF-фьюжна сравнивать его с косинусным порогом бессмысленно.
         candidates = retriever.retrieve(
             RetrievalQuery(
                 text=retrieval_query,
                 knowledge_base_id=str(payload.knowledge_base_id),
                 top_k=max(payload.top_k, settings.rerank_candidates),
+                score_threshold=settings.no_answer_min_score,
             )
         )
         trace.retrieved_chunk_ids = [hit.chunk_id for hit in candidates]
@@ -111,11 +114,18 @@ def chat(
         context = context_builder.build(hits)
         # Генерация отвечает на исходный вопрос пользователя, а не на
         # переписанный retrieval-запрос — переписывание нужно только поиску.
-        answer = generator.generate(payload.question, context, history=history)
+        answer = generator.generate(
+            payload.question,
+            context,
+            history=history,
+            threshold_applied=settings.no_answer_min_score is not None,
+        )
 
         trace.llm_model = answer.model
         trace.llm_provider = answer.provider
         trace.has_answer = answer.has_answer
+        trace.no_answer_reason = answer.no_answer_reason
+        trace.no_answer_code = answer.no_answer_code
         trace.llm_latency_ms = answer.latency_ms
 
     citations = [
@@ -152,4 +162,5 @@ def chat(
         latency_ms=answer.latency_ms,
         conversation_id=conversation.id if conversation is not None else None,
         rewritten_query=trace.rewritten_query,
+        no_answer_reason=answer.no_answer_reason,
     )

@@ -154,6 +154,9 @@ class ChatResponse(BaseModel):
     latency_ms: int | None = None
     conversation_id: uuid.UUID | None = None
     rewritten_query: str | None = None
+    # Причина отказа отдаётся наружу: пользователю важно различать «в базе нет
+    # таких данных» и «ответ был, но он ничем не подтверждён».
+    no_answer_reason: str | None = None
 
 
 class ConversationCreate(BaseModel):

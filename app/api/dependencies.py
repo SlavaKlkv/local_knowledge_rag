@@ -24,6 +24,7 @@ from app.rag.context_builder import ContextBuilder
 from app.rag.embeddings import EmbeddingProvider, OllamaEmbeddingProvider
 from app.rag.generation import AnswerGenerator
 from app.rag.indexer import DocumentIndexer
+from app.rag.no_answer import NoAnswerPolicy
 from app.rag.query_rewriting import QueryRewriter
 from app.rag.reranker import CrossEncoderReranker, NoOpReranker, Reranker
 from app.rag.retriever import (
@@ -155,8 +156,15 @@ def get_context_builder() -> ContextBuilder:
     return ContextBuilder()
 
 
+def get_no_answer_policy() -> NoAnswerPolicy:
+    settings = get_settings()
+    return NoAnswerPolicy(require_citations=settings.no_answer_require_citations)
+
+
 def get_answer_generator() -> AnswerGenerator:
-    return AnswerGenerator(get_llm_provider(), get_settings().llm_model)
+    return AnswerGenerator(
+        get_llm_provider(), get_settings().llm_model, policy=get_no_answer_policy()
+    )
 
 
 def get_query_rewriter() -> QueryRewriter:

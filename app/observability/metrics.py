@@ -34,6 +34,15 @@ queries_total = Counter(
     registry=REGISTRY,
 )
 
+no_answer_total = Counter(
+    "rag_no_answer_total",
+    "Отказы отвечать с разбивкой по причине",
+    # Код, а не текст причины: в тексте есть скор и порог, и меткой он дал бы
+    # неограниченную кардинальность.
+    labelnames=("reason",),
+    registry=REGISTRY,
+)
+
 query_errors_total = Counter(
     "rag_query_errors_total",
     "Запросы, завершившиеся ошибкой",
@@ -108,6 +117,10 @@ def record_query(trace_data: dict) -> None:
     else:
         has_answer = trace_data.get("has_answer")
         queries_total.labels(has_answer=str(bool(has_answer)).lower()).inc()
+        if not has_answer:
+            no_answer_total.labels(
+                reason=trace_data.get("no_answer_code") or "unknown"
+            ).inc()
 
     model = trace_data.get("llm_model")
     if model:
