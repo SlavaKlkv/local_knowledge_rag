@@ -147,8 +147,9 @@ uv run python -m scripts.evaluate_retrieval docs/evaluation/example_dataset.json
 
 ## Статус
 
-Реализованы этапы V1–V3 (ядро RAG, продвинутый retrieval, локальная
-inference-платформа). Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
+Реализованы Stage 1–4 (ядро RAG, продвинутый retrieval, локальная
+inference-платформа, production-бэкенд); Stage 5 начат — метрики retrieval
+уже считаются. Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
 
 ## Лицензия
 
