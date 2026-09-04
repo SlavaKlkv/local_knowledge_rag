@@ -103,14 +103,26 @@ class HybridRetriever:
         # измениться, и не должно оказаться, что в top_k текущего списка
         # не попал чанк, который в объединении был бы лучшим.
         candidate_k = max(query.top_k * 3, query.top_k)
-        candidate_query = RetrievalQuery(
-            text=query.text,
-            knowledge_base_id=query.knowledge_base_id,
-            top_k=candidate_k,
-            document_ids=query.document_ids,
+        # Порог применяется только к dense-ноге: он задан в шкале косинусной
+        # близости, тогда как лексический вес sparse и итоговый скор RRF
+        # живут в других шкалах, и один и тот же порог значил бы там другое.
+        dense_hits = self._dense.retrieve(
+            RetrievalQuery(
+                text=query.text,
+                knowledge_base_id=query.knowledge_base_id,
+                top_k=candidate_k,
+                score_threshold=query.score_threshold,
+                document_ids=query.document_ids,
+            )
         )
-        dense_hits = self._dense.retrieve(candidate_query)
-        sparse_hits = self._sparse.retrieve(candidate_query)
+        sparse_hits = self._sparse.retrieve(
+            RetrievalQuery(
+                text=query.text,
+                knowledge_base_id=query.knowledge_base_id,
+                top_k=candidate_k,
+                document_ids=query.document_ids,
+            )
+        )
 
         fused = self._fuse(dense_hits, sparse_hits)
         return fused[: query.top_k]
