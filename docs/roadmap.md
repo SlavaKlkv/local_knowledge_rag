@@ -21,4 +21,4 @@ reindex, auth, permissions, conversations, Docker Compose.
 
 ## Stage 5 — AI Quality
 Evaluation dataset ✅, retrieval metrics ✅, RAG evaluation ✅, LLM benchmark ✅,
-profile benchmark, no-answer, Prometheus/Grafana, observability.
+profile benchmark ✅, no-answer, Prometheus/Grafana, observability.
