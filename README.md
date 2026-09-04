@@ -173,9 +173,10 @@ uv run python -m scripts.benchmark_models docs/evaluation/example_dataset.json
 
 ## Статус
 
-Реализованы Stage 1–4 (ядро RAG, продвинутый retrieval, локальная
-inference-платформа, production-бэкенд); Stage 5 начат — метрики retrieval
-уже считаются. Дальнейшие шаги — в [docs/roadmap.md](docs/roadmap.md).
+Реализованы все пять этапов: ядро RAG, продвинутый retrieval, локальная
+inference-платформа, production-бэкенд и AI quality — измеримое качество,
+честный отказ и наблюдаемость. Состав этапов — в
+[docs/roadmap.md](docs/roadmap.md).
 
 ## Лицензия
 

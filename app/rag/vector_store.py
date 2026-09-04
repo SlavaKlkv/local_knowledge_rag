@@ -131,6 +131,8 @@ class QdrantVectorStore:
         score_threshold: float | None = None,
         document_ids: list[str] | None = None,
     ) -> list[RetrievedChunk]:
+        if not self._collection_ready():
+            return []
         response = self._client.query_points(
             collection_name=self._collection,
             query=vector,
@@ -153,6 +155,8 @@ class QdrantVectorStore:
             # Пустой sparse-вектор (например, вопрос из одних стоп-слов
             # в хешированном пространстве) не даёт Qdrant искать что-либо.
             return []
+        if not self._collection_ready():
+            return []
         response = self._client.query_points(
             collection_name=self._collection,
             query=qm.SparseVector(
@@ -164,6 +168,16 @@ class QdrantVectorStore:
             with_payload=True,
         )
         return [_to_retrieved(point) for point in response.points]
+
+    def _collection_ready(self) -> bool:
+        """Есть ли вообще коллекция, по которой можно искать.
+
+        На свежей установке коллекция создаётся первой индексацией. До неё
+        Qdrant отвечает на поиск 404, и без этой проверки запрос к пустой базе
+        знаний оборачивался пятисоткой вместо честного «ничего не найдено» —
+        то есть отсутствие данных выглядело как поломка сервиса.
+        """
+        return self._client.collection_exists(self._collection)
 
     def delete_document(self, document_id: str, version: int | None = None) -> None:
         """Удаляет векторы документа.

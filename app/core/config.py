@@ -59,6 +59,14 @@ class Settings(BaseSettings):
 
     hybrid_retrieval_enabled: bool = True
 
+    # Порог выключен по умолчанию: он живёт в шкале конкретной
+    # embedding-модели, и зашитое число врало бы при её замене. Подбирается
+    # прогоном evaluation, где видно цену отказа от домысливания: ложные
+    # срабатывания падают вместе с Recall. Применяется в retrieval, а не после
+    # фьюжна — там скор ещё в своей шкале.
+    no_answer_min_score: float | None = None
+    no_answer_require_citations: bool = True
+
     model_ring_enabled: bool = True
     model_ring_max_attempts: int = Field(default=3, gt=0)
     model_ring_timeout_budget_s: float = Field(default=45.0, gt=0)

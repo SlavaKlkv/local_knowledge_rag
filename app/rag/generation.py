@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from app.llm.base import GenerationRequest, LocalLLMProvider
 from app.rag.context_builder import BuiltContext
+from app.rag.no_answer import NoAnswerPolicy
 from app.rag.prompts import (
     ANSWER_SCHEMA,
     NO_ANSWER_TEXT,
@@ -36,20 +37,40 @@ class Answer:
     model: str | None = None
     provider: str | None = None
     latency_ms: int | None = None
+    # Почему именно система промолчала: без этого отказ неотличим от сбоя
+    # ни в логах, ни при разборе жалобы «он ничего не ответил».
+    no_answer_reason: str | None = None
+    no_answer_code: str | None = None
 
 
 class AnswerGenerator:
-    def __init__(self, provider: LocalLLMProvider, model: str) -> None:
+    def __init__(
+        self,
+        provider: LocalLLMProvider,
+        model: str,
+        policy: NoAnswerPolicy | None = None,
+    ) -> None:
         self._provider = provider
         self._model = model
+        self._policy = policy or NoAnswerPolicy()
 
     def generate(
-        self, question: str, context: BuiltContext, history: str | None = None
+        self,
+        question: str,
+        context: BuiltContext,
+        history: str | None = None,
+        threshold_applied: bool = False,
     ) -> Answer:
-        if context.is_empty:
-            # Без контекста запрос к модели бессмыслен: любой ответ будет
-            # неподтверждённым.
-            return Answer(text=NO_ANSWER_TEXT, has_answer=False)
+        decision = self._policy.before_generation(context, threshold_applied)
+        if decision.refuse:
+            # Без пригодного контекста запрос к модели бессмыслен: любой ответ
+            # будет неподтверждённым, а инференс — потраченным впустую.
+            return Answer(
+                text=NO_ANSWER_TEXT,
+                has_answer=False,
+                no_answer_reason=decision.reason,
+                no_answer_code=decision.code,
+            )
 
         result = self._provider.generate(
             GenerationRequest(
@@ -60,21 +81,27 @@ class AnswerGenerator:
             model=self._model,
         )
         payload = _parse_payload(result.text)
-        has_answer = bool(payload.get("has_answer"))
         answer_text = (payload.get("answer") or "").strip()
-        if not has_answer or not answer_text:
+        citations = resolve_citations(payload.get("citations") or [], context)
+        decision = self._policy.after_generation(
+            has_answer=bool(payload.get("has_answer")) and bool(answer_text),
+            citation_count=len(citations),
+        )
+        if decision.refuse:
             return Answer(
                 text=NO_ANSWER_TEXT,
                 has_answer=False,
                 model=result.model,
                 provider=result.provider,
                 latency_ms=result.latency_ms,
+                no_answer_reason=decision.reason,
+                no_answer_code=decision.code,
             )
 
         return Answer(
             text=answer_text,
             has_answer=True,
-            citations=resolve_citations(payload.get("citations") or [], context),
+            citations=citations,
             model=result.model,
             provider=result.provider,
             latency_ms=result.latency_ms,

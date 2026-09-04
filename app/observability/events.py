@@ -35,6 +35,8 @@ class QueryTrace:
     inference_runtime: str | None = None
     hardware_profile: str | None = None
     has_answer: bool | None = None
+    no_answer_reason: str | None = None
+    no_answer_code: str | None = None
     error: str | None = None
     retrieval_latency_ms: float | None = None
     llm_latency_ms: float | None = None
