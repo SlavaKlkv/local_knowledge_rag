@@ -769,9 +769,13 @@ dependencies = [
     { name = "python-multipart" },
     { name = "qdrant-client" },
     { name = "redis" },
-    { name = "sentence-transformers" },
     { name = "sqlalchemy" },
     { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+reranking = [
+    { name = "sentence-transformers" },
 ]
 
 [package.dev-dependencies]
@@ -799,10 +803,11 @@ requires-dist = [
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "qdrant-client", specifier = ">=1.12" },
     { name = "redis", specifier = ">=8.1.0" },
-    { name = "sentence-transformers", specifier = ">=6.0.1" },
+    { name = "sentence-transformers", marker = "extra == 'reranking'", specifier = ">=6.0.1" },
     { name = "sqlalchemy", specifier = ">=2.0.36" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34" },
 ]
+provides-extras = ["reranking"]
 
 [package.metadata.requires-dev]
 dev = [

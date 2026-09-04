@@ -97,3 +97,21 @@ def test_health_check_reflects_model_availability(monkeypatch):
 
     monkeypatch.setattr(reranker, "_load", failing_load)
     assert reranker.health_check() is False
+
+
+def test_missing_reranking_extra_explains_how_to_proceed():
+    """Без extra 'reranking' reranker обязан честно отказать с подсказкой,
+    а не падать неинформативным ImportError изнутри пайплайна."""
+    try:
+        import sentence_transformers  # noqa: F401
+    except ImportError:
+        pass
+    else:
+        pytest.skip("extra 'reranking' установлен — проверять нечего")
+
+    with pytest.raises(InferenceError) as exc_info:
+        CrossEncoderReranker().rerank("вопрос", [_chunk("a", "текст")])
+
+    message = str(exc_info.value)
+    assert "reranking" in message
+    assert "RERANK_ENABLED" in message
