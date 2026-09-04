@@ -83,8 +83,38 @@ services:
       - "host.docker.internal:host-gateway"
     command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
 
+  prometheus:
+    image: prom/prometheus:v3.7.3
+    profiles: ["observability"]
+    depends_on:
+      - api
+    volumes:
+      - ./deploy/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:12.3.1
+    profiles: ["observability"]
+    depends_on:
+      - prometheus
+    environment:
+      # Дашборд поднимается автопровижионингом, логин нужен только человеку;
+      # наружу этот порт выставлять не следует.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+
 volumes:
   postgres_data:
   qdrant_data:
   redis_data:
   documents:
+  prometheus_data:
+  grafana_data:

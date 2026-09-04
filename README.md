@@ -41,7 +41,8 @@ documents → parsing → normalization → chunking → local embeddings
 ## Стек
 
 Python 3.13, FastAPI, Pydantic v2, SQLAlchemy 2, Alembic, PostgreSQL, Qdrant,
-Redis, Ollama / vLLM, sentence-transformers, Docker Compose, pytest, ruff.
+Redis, Celery, Ollama / vLLM, sentence-transformers, Prometheus, Grafana,
+Docker Compose, pytest, ruff.
 
 ## Быстрый старт
 
@@ -132,6 +133,17 @@ uv run ruff check .
 
 Тесты Qdrant — интеграционные, против реально поднятого сервиса; при его
 отсутствии они пропускаются.
+
+## Наблюдаемость
+
+Метрики Prometheus — на `/metrics`; Prometheus и Grafana с готовым дашбордом
+поднимаются профилем `observability`:
+
+```bash
+docker compose --profile observability up -d
+```
+
+Подробнее — в [docs/observability.md](docs/observability.md).
 
 ## Оценка качества
 

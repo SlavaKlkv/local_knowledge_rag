@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import Document, DocumentStatus, DocumentVersion, IndexingJob, JobStatus
 from app.db.session import get_session_factory
+from app.observability.metrics import record_indexing
 from app.workers.celery_app import celery_app
 
 logger = logging.getLogger("rag.indexing")
@@ -71,6 +72,7 @@ def index_document_task(self, document_id: str, job_id: str) -> str:
             )
         except Exception as exc:  # noqa: BLE001 - любая ошибка индексации фиксируется
             _fail(db, document, job, str(exc))
+            record_indexing("failed")
             logger.warning(
                 "indexing_failed",
                 extra={"document_id": document_id, "error": str(exc)},
@@ -87,6 +89,7 @@ def index_document_task(self, document_id: str, job_id: str) -> str:
         job.finished_at = datetime.now(UTC)
         db.commit()
 
+        record_indexing("succeeded", chunk_count=result.chunk_count)
         logger.info(
             "indexing_succeeded",
             extra={"document_id": document_id, "chunks": result.chunk_count},

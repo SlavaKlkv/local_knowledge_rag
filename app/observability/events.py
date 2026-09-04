@@ -14,6 +14,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field, fields
 from typing import Any
 
+from app.observability.metrics import record_query
+
 logger = logging.getLogger("rag.query")
 
 
@@ -46,7 +48,11 @@ class QueryTrace:
         }
 
     def emit(self) -> None:
-        logger.info("rag_query", extra={"rag_query": self.as_dict()})
+        payload = self.as_dict()
+        logger.info("rag_query", extra={"rag_query": payload})
+        # Метрики питаются тем же событием, что и лог: одно место сбора,
+        # два потребителя — иначе они неизбежно разъедутся.
+        record_query(payload)
 
 
 @contextmanager

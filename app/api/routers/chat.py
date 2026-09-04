@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -85,6 +87,7 @@ def chat(
 
         # Кандидатов берём с запасом относительно итогового top_k: reranker
         # работает точнее dense-поиска именно на более широком наборе.
+        retrieval_started = time.perf_counter()
         candidates = retriever.retrieve(
             RetrievalQuery(
                 text=retrieval_query,
@@ -99,6 +102,10 @@ def chat(
             retrieval_query, candidates, top_k=min(payload.top_k, settings.rerank_top_k)
         )
         trace.reranking_scores = [item.rerank_score for item in reranked]
+        # Замер включает reranking: с точки зрения «куда уходит время» поиск
+        # кандидатов и их пересортировка — одна ступень, и отделять её нужно
+        # не друг от друга, а от генерации.
+        trace.retrieval_latency_ms = (time.perf_counter() - retrieval_started) * 1000
         hits = [item.chunk for item in reranked]
 
         context = context_builder.build(hits)
