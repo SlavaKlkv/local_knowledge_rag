@@ -114,6 +114,18 @@ uv run ruff check .
 Тесты Qdrant — интеграционные, против реально поднятого сервиса; при его
 отсутствии они пропускаются.
 
+## Оценка качества
+
+Качество retrieval измеряется на размеченном датасете: Recall@K, Precision@K,
+MRR, nDCG@K и доля ложных срабатываний на вопросах без ответа.
+
+```bash
+uv run python -m scripts.evaluate_retrieval docs/evaluation/example_dataset.json --k 1 3 5
+```
+
+Формат датасета, смысл каждой метрики и результаты первого прогона —
+в [docs/evaluation/README.md](docs/evaluation/README.md).
+
 ## Статус
 
 Реализованы этапы V1–V3 (ядро RAG, продвинутый retrieval, локальная

@@ -109,9 +109,11 @@ class FakeHybridStore:
     ) -> None:
         self.dense_hits = dense_hits
         self.sparse_hits = sparse_hits
+        self.dense_calls: list[dict] = []
         self.sparse_calls: list[dict] = []
 
     def search(self, **kwargs):
+        self.dense_calls.append(kwargs)
         return self.dense_hits
 
     def sparse_search(self, **kwargs):
@@ -195,3 +197,27 @@ def test_hybrid_retriever_rejects_invalid_query():
 
     with pytest.raises(ValidationError):
         hybrid.retrieve(RetrievalQuery(text="", knowledge_base_id="kb-1"))
+
+
+def test_hybrid_passes_score_threshold_to_the_dense_leg():
+    """Порог задан в шкале косинуса, поэтому доходить он должен именно до dense.
+
+    Раньше HybridRetriever собирал внутренний запрос без score_threshold,
+    и порог молча терялся: поиск с порогом вёл себя как поиск без него.
+    Sparse-ноге порог не передаётся сознательно — там другая шкала веса.
+    """
+    from app.rag.retriever import DenseRetriever, HybridRetriever, SparseRetriever
+
+    store = FakeHybridStore(dense_hits=[_chunk("a")], sparse_hits=[])
+    hybrid = HybridRetriever(
+        DenseRetriever(FakeEmbeddings(), store), SparseRetriever(store)
+    )
+
+    hybrid.retrieve(
+        RetrievalQuery(
+            text="вопрос", knowledge_base_id="kb-1", top_k=3, score_threshold=0.8
+        )
+    )
+
+    assert store.dense_calls[-1]["score_threshold"] == 0.8
+    assert "score_threshold" not in store.sparse_calls[-1]
