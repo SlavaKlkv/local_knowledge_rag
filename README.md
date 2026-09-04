@@ -142,7 +142,14 @@ MRR, nDCG@K и доля ложных срабатываний на вопрос�
 uv run python -m scripts.evaluate_retrieval docs/evaluation/example_dataset.json --k 1 3 5
 ```
 
-Формат датасета, смысл каждой метрики и результаты первого прогона —
+Качество ответов измеряется отдельно — обоснованность, точность цитат и
+честный отказ на вопросах без ответа:
+
+```bash
+uv run python -m scripts.evaluate_rag docs/evaluation/example_dataset.json --top-k 5
+```
+
+Формат датасета, смысл каждой метрики и результаты прогонов —
 в [docs/evaluation/README.md](docs/evaluation/README.md).
 
 ## Статус
