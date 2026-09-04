@@ -19,6 +19,7 @@ from app.api import dependencies
 from app.core.errors import AppError
 from app.evaluation.benchmark import BenchmarkResult, ModelBenchmark
 from app.evaluation.dataset import load_dataset
+from app.evaluation.profile_benchmark import ProfileBenchmark, ProfileBenchmarkResult
 from app.evaluation.rag import PipelineAnswerer
 from app.hardware.profiles import get_profile_definition
 from app.rag.generation import AnswerGenerator
@@ -73,22 +74,48 @@ def format_result(result: BenchmarkResult) -> str:
     return "\n".join(lines)
 
 
+def format_profiles(result: ProfileBenchmarkResult) -> str:
+    lines = [f"{'профиль':<14}{'лучшая модель':<24}{'обоснов.':>10}{'медиана':>10}"]
+    for outcome in result.outcomes:
+        if outcome.best is None:
+            missing = ", ".join(outcome.unavailable_models)
+            lines.append(f"{str(outcome.profile):<14}недоступен: не установлены {missing}")
+            continue
+        best = outcome.best
+        lines.append(
+            f"{str(outcome.profile):<14}{best.model:<24}"
+            f"{best.report.groundedness:>10.3f}{best.median_latency_ms:>7} мс"
+        )
+    chosen = result.best_profile()
+    if chosen is not None:
+        lines.append(f"Лучший по измерениям: {chosen.profile} ({chosen.best.model})")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Бенчмарк локальных моделей")
     parser.add_argument("dataset", help="путь к JSON-датасету")
     parser.add_argument("--models", nargs="+", default=None)
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--score-threshold", type=float, default=None)
+    parser.add_argument(
+        "--profiles",
+        action="store_true",
+        help="сравнивать профили железа по лучшей доступной модели их кольца",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
     try:
         dataset = load_dataset(args.dataset)
+        factory = make_factory(args.top_k, args.score_threshold)
+        if args.profiles:
+            profile_result = ProfileBenchmark(factory).run(dataset)
+            print(json.dumps(profile_result.as_dict(), ensure_ascii=False, indent=2)
+                  if args.json else format_profiles(profile_result))
+            return 0
         models = args.models or profile_models()
-        benchmark = ModelBenchmark(
-            make_factory(args.top_k, args.score_threshold), models
-        )
-        result = benchmark.run(dataset)
+        result = ModelBenchmark(factory, models).run(dataset)
     except AppError as exc:
         print(f"Бенчмарк не выполнен: {exc}", file=sys.stderr)
         return 1
