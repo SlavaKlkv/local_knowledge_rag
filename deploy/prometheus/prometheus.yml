@@ -1,0 +1,10 @@
+global:
+  # Локальная генерация занимает секунды, а не миллисекунды: скрести чаще
+  # незачем, а разрешения в 15 секунд хватает, чтобы увидеть всплеск.
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: local-knowledge-rag
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["api:8000"]

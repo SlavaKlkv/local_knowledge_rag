@@ -1,0 +1,218 @@
+{
+  "title": "Local Knowledge RAG",
+  "uid": "local-knowledge-rag",
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "DS_PROMETHEUS",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Запросы в минуту",
+      "description": "Ошибки отделены от успешных запросов: рост ошибок при ровном трафике — первый признак недоступного inference.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rag_queries_total[5m])) * 60",
+          "legendFormat": "всего",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(rag_query_errors_total[5m])) * 60",
+          "legendFormat": "ошибки",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Доля ответов без ответа",
+      "description": "Резкий рост означает, что retrieval перестал находить нужное — раньше, чем это заметят пользователи.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(rag_queries_total{has_answer=\"false\"}[5m])) / clamp_min(sum(rate(rag_queries_total[5m])), 0.0001)",
+          "legendFormat": "no-answer",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Латентность запроса",
+      "description": "p95 важнее среднего: именно хвост отличает «обычно быстро» от «иногда неприемлемо долго».",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(rag_query_latency_seconds_bucket[5m])))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_query_latency_seconds_bucket[5m])))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Retrieval против генерации",
+      "description": "Показывает, куда уходит время: оптимизировать retrieval, когда 90% занимает генерация, бессмысленно.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_retrieval_latency_seconds_bucket[5m])))",
+          "legendFormat": "retrieval p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(rag_generation_latency_seconds_bucket[5m])))",
+          "legendFormat": "генерация p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Модели и переключения кольца",
+      "description": "Постоянный ненулевой fallback означает, что основная модель кольца нездорова.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (model) (rate(rag_model_usage_total[5m])) * 60",
+          "legendFormat": "{{model}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(rag_model_fallback_total[5m])) * 60",
+          "legendFormat": "fallback",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Индексация документов",
+      "description": "Ненулевая доля failed при работающей индексации — обычно недоступная embedding-модель.",
+      "type": "timeseries",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(rag_documents_indexed_total[15m])) * 60",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(rag_chunks_indexed_total[15m])) * 60",
+          "legendFormat": "фрагменты",
+          "refId": "B"
+        }
+      ]
+    }
+  ]
+}
