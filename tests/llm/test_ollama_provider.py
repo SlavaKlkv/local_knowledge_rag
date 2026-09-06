@@ -121,3 +121,20 @@ def test_model_availability_ignores_tag_differences(monkeypatch, provider):
     assert provider.is_model_available("qwen3:4b") is True
     assert provider.is_model_available("gemma3:12b") is False
     assert provider.list_models()[0].parameter_size == "14B"
+
+
+def test_thinking_is_disabled(monkeypatch, provider, request_obj):
+    """Рассуждающая модель иначе отдаёт пустой response и выглядит упавшей."""
+    captured: dict = {}
+
+    def handler(url, json, timeout):
+        captured.update(json)
+        return httpx.Response(
+            200, json={"response": "ответ"}, request=httpx.Request("POST", url)
+        )
+
+    monkeypatch.setattr("app.llm.ollama.httpx.post", handler)
+
+    provider.generate(request_obj, model="qwen3:4b")
+
+    assert captured["think"] is False

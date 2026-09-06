@@ -30,6 +30,13 @@ class OllamaProvider(LocalLLMProvider):
             "system": request.system,
             "prompt": request.prompt,
             "stream": False,
+            # Рассуждающие модели (qwen3 и подобные) по умолчанию тратят
+            # бюджет num_predict на размышления и возвращают их отдельным
+            # полем thinking, оставляя response пустым — генерация выглядит
+            # как отказ модели. Ответ нужен сразу, цепочка рассуждений в
+            # grounded-ответе не используется. Модели без thinking флаг
+            # игнорируют.
+            "think": False,
             "options": {"temperature": request.temperature},
         }
         if request.max_tokens:
