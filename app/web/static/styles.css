@@ -1,5 +1,5 @@
 :root {
-  color-scheme: light;
+  color-scheme: light dark;
   --bg: #f6f7f9;
   --surface: #ffffff;
   --border: #e2e5ea;
@@ -8,9 +8,36 @@
   --accent: #2563eb;
   --accent-soft: #eaf0ff;
   --ok: #17803d;
+  --ok-bg: #e7f6ec;
   --warn: #b45309;
+  --warn-bg: #fef3c7;
   --danger: #b42318;
+  --danger-bg: #fee4e2;
+  --notice-bg: #fffbeb;
+  --notice-border: #fde68a;
   --radius: 10px;
+}
+
+/* Тема следует настройке системы: интерфейс открывают и в светлой, и в
+   тёмной, а переключателя в приложении нет. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --surface: #1c1f26;
+    --border: #2c313b;
+    --text: #e6e8ec;
+    --muted: #9aa3b2;
+    --accent: #6b9bff;
+    --accent-soft: #22304d;
+    --ok: #5bd68a;
+    --ok-bg: #17301f;
+    --warn: #e3b341;
+    --warn-bg: #33280f;
+    --danger: #ff8078;
+    --danger-bg: #3a1d1b;
+    --notice-bg: #2a2410;
+    --notice-border: #4d4318;
+  }
 }
 
 * {
@@ -69,7 +96,7 @@ body {
 }
 
 .pill-local {
-  background: #e7f6ec;
+  background: var(--ok-bg);
   color: var(--ok);
 }
 
@@ -100,7 +127,7 @@ button.primary {
 }
 
 button.primary:disabled {
-  background: #9db5ea;
+  opacity: 0.55;
   cursor: default;
 }
 
@@ -261,18 +288,18 @@ input[type="password"] {
 }
 
 .status-indexed {
-  background: #e7f6ec;
+  background: var(--ok-bg);
   color: var(--ok);
 }
 
 .status-pending,
 .status-indexing {
-  background: #fef3c7;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
 .status-failed {
-  background: #fee4e2;
+  background: var(--danger-bg);
   color: var(--danger);
 }
 
@@ -309,18 +336,18 @@ input[type="password"] {
 }
 
 .health-healthy {
-  background: #e7f6ec;
+  background: var(--ok-bg);
   color: var(--ok);
 }
 
 .health-degraded,
 .health-cooldown {
-  background: #fef3c7;
+  background: var(--warn-bg);
   color: var(--warn);
 }
 
 .health-unavailable {
-  background: #eef0f3;
+  background: var(--border);
   color: var(--muted);
 }
 
@@ -425,8 +452,8 @@ input[type="password"] {
   display: flex;
   gap: 10px;
   align-items: flex-start;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-border);
   border-radius: 8px;
   padding: 12px;
 }
@@ -537,8 +564,8 @@ input[type="password"] {
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background: #1b1f24;
-  color: #fff;
+  background: var(--text);
+  color: var(--bg);
   padding: 10px 16px;
   border-radius: 8px;
   font-size: 13px;
