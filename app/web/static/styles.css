@@ -1,12 +1,15 @@
+/* Палитра нейтральная: выделение и основные действия несут графит, белый и
+   серый. Красный, зелёный и оранжевый остаются сигнальными — они говорят
+   только о статусе документа, здоровье модели и отказе ответить. */
 :root {
-  color-scheme: light dark;
-  --bg: #f6f7f9;
+  --bg: #f5f5f4;
   --surface: #ffffff;
-  --border: #e2e5ea;
-  --text: #1b1f24;
-  --muted: #6b7280;
-  --accent: #2563eb;
-  --accent-soft: #eaf0ff;
+  --border: #dcdad6;
+  --text: #17171a;
+  --muted: #6f6f74;
+  --ink: #26262b;
+  --accent: #26262b;
+  --accent-soft: #e8e6e2;
   --ok: #17803d;
   --ok-bg: #e7f6ec;
   --warn: #b45309;
@@ -16,19 +19,22 @@
   --notice-bg: #fffbeb;
   --notice-border: #fde68a;
   --radius: 10px;
+  color-scheme: light;
+  accent-color: #26262b;
 }
 
-/* Тема следует настройке системы: интерфейс открывают и в светлой, и в
-   тёмной, а переключателя в приложении нет. */
+/* Тема: системная по умолчанию, а выбор пользователя ставит на <html>
+   data-theme и перебивает системный запрос в обе стороны. */
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #14161a;
-    --surface: #1c1f26;
-    --border: #2c313b;
-    --text: #e6e8ec;
-    --muted: #9aa3b2;
-    --accent: #6b9bff;
-    --accent-soft: #22304d;
+  :root:not([data-theme="light"]) {
+    --bg: #131315;
+    --surface: #1b1b1e;
+    --border: #33333a;
+    --text: #e9e8e6;
+    --muted: #9b9ba2;
+    --ink: #e9e8e6;
+    --accent: #f2f1ef;
+    --accent-soft: #33333a;
     --ok: #5bd68a;
     --ok-bg: #17301f;
     --warn: #e3b341;
@@ -37,7 +43,30 @@
     --danger-bg: #3a1d1b;
     --notice-bg: #2a2410;
     --notice-border: #4d4318;
+    color-scheme: dark;
+    accent-color: #f2f1ef;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #131315;
+  --surface: #1b1b1e;
+  --border: #33333a;
+  --text: #e9e8e6;
+  --muted: #9b9ba2;
+  --ink: #e9e8e6;
+  --accent: #f2f1ef;
+  --accent-soft: #33333a;
+  --ok: #5bd68a;
+  --ok-bg: #17301f;
+  --warn: #e3b341;
+  --warn-bg: #33280f;
+  --danger: #ff8078;
+  --danger-bg: #3a1d1b;
+  --notice-bg: #2a2410;
+  --notice-border: #4d4318;
+  color-scheme: dark;
+  accent-color: #f2f1ef;
 }
 
 * {
@@ -79,7 +108,8 @@ body {
   width: 18px;
   height: 18px;
   border-radius: 5px;
-  background: linear-gradient(135deg, var(--accent), #7c3aed);
+  background: var(--ink);
+  box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 3px var(--ink);
 }
 
 .topbar-right {
@@ -98,6 +128,38 @@ body {
 .pill-local {
   background: var(--ok-bg);
   color: var(--ok);
+}
+
+/* Переключатель темы: сегменты вместо выпадающего списка — три состояния
+   видны сразу, и выбранное читается без раскрытия. */
+.theme-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.theme-switch button {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.theme-switch button:hover {
+  color: var(--text);
+}
+
+.theme-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
 }
 
 /* --- Общее --- */
@@ -122,8 +184,8 @@ button {
 }
 
 button.primary {
-  background: var(--accent);
-  color: #fff;
+  background: var(--ink);
+  color: var(--surface);
 }
 
 button.primary:disabled {
@@ -139,6 +201,18 @@ button.ghost {
 
 button.small {
   padding: 2px 9px;
+}
+
+/* Штатное кольцо фокуса у Chrome синее и выпадает из палитры,
+   поэтому фокус рисуется акцентом. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+input:focus-visible {
+  outline-offset: 0;
+  border-color: var(--accent);
 }
 
 input[type="text"],
@@ -260,7 +334,7 @@ input[type="password"] {
 
 .kb-list li.active button {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--text);
   font-weight: 600;
 }
 
@@ -429,8 +503,8 @@ input[type="password"] {
 
 .msg-user {
   align-self: flex-end;
-  background: var(--accent);
-  color: #fff;
+  background: var(--ink);
+  color: var(--surface);
   padding: 10px 14px;
   border-radius: 12px 12px 2px 12px;
 }

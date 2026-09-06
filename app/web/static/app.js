@@ -6,6 +6,7 @@
  */
 
 const TOKEN_KEY = "lkr.token";
+const THEME_KEY = "lkr.theme";
 
 const state = {
   token: localStorage.getItem(TOKEN_KEY),
@@ -15,6 +16,29 @@ const state = {
 };
 
 const $ = (id) => document.getElementById(id);
+
+/* --- Тема --- */
+
+/*
+ * Выбор темы живёт в localStorage и переживает перезагрузку. Значение
+ * "system" снимает атрибут с <html>, и оформление снова следует за
+ * настройкой операционной системы.
+ */
+function applyTheme(theme) {
+  if (theme === "system") {
+    document.documentElement.removeAttribute("data-theme");
+  } else {
+    document.documentElement.dataset.theme = theme;
+  }
+  for (const button of document.querySelectorAll("#theme-switch button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.theme === theme));
+  }
+}
+
+function setTheme(theme) {
+  localStorage.setItem(THEME_KEY, theme);
+  applyTheme(theme);
+}
 
 /* --- Сетевой слой --- */
 
@@ -269,10 +293,13 @@ function renderEmptyChat() {
   }
 }
 
+// Подсказки — только вопросы по документам. Вопрос без ответа в базе
+// пользователь задаёт сам: подсказка с заранее известным отказом выглядела
+// бы постановочной.
 const SUGGESTIONS = [
-  "Как устроено кольцо моделей?",
-  "Что происходит, если данных для ответа не хватает?",
-  "Какая погода завтра в Париже?",
+  "Как компенсируется дежурство в выходной?",
+  "Какие лимиты на проживание в командировке?",
+  "Сколько длится испытательный срок?",
 ];
 
 function appendUserMessage(text) {
@@ -468,5 +495,10 @@ for (const tab of document.querySelectorAll(".tab")) {
   });
 }
 
+for (const button of document.querySelectorAll("#theme-switch button")) {
+  button.addEventListener("click", () => setTheme(button.dataset.theme));
+}
+
+applyTheme(localStorage.getItem(THEME_KEY) || "system");
 setInterval(loadRing, 15000);
 render();
