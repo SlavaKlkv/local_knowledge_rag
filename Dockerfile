@@ -32,6 +32,10 @@ COPY --from=builder --chown=app:app /app/.venv /app/.venv
 COPY --chown=app:app alembic.ini ./
 COPY --chown=app:app alembic ./alembic
 COPY --chown=app:app app ./app
+# Скрипты нужны в образе, чтобы наполнить демо-данными и прогнать оценку
+# качества можно было одним `docker compose exec`, без локального Python.
+COPY --chown=app:app scripts ./scripts
+COPY --chown=app:app docs/demo ./docs/demo
 
 # Директория для загруженных файлов создаётся заранее и с нужным
 # владельцем: при первом монтировании Docker копирует права из образа,
