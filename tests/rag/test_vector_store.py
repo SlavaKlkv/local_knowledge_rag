@@ -177,3 +177,60 @@ def test_sparse_search_with_empty_vector_returns_nothing(store):
     from app.rag.sparse import SparseVector
 
     assert store.sparse_search(SparseVector([], []), knowledge_base_id="kb-1") == []
+
+
+def test_ensure_collection_survives_concurrent_creation() -> None:
+    """Гонка при первой индексации не должна ронять задачу.
+
+    Проверка и создание коллекции не атомарны: на пустой установке воркеры
+    приходят сюда одновременно, и все, кроме одного, получают 409.
+    """
+    from qdrant_client.http.exceptions import UnexpectedResponse
+
+    class LosingClient:
+        """Клиент, проигравший гонку: коллекции ещё нет, создать уже нельзя."""
+
+        def __init__(self) -> None:
+            self.indexed: list[str] = []
+
+        def collection_exists(self, collection_name: str) -> bool:
+            return False
+
+        def create_collection(self, **_: object) -> None:
+            raise UnexpectedResponse(
+                status_code=409,
+                reason_phrase="Conflict",
+                content=b"Collection `knowledge_chunks` already exists!",
+                headers=None,
+            )
+
+        def create_payload_index(self, *, field_name: str, **_: object) -> None:
+            self.indexed.append(field_name)
+
+    client = LosingClient()
+    store = QdrantVectorStore(client=client, collection="c", dimension=3)
+
+    store.ensure_collection()
+
+    assert client.indexed == ["knowledge_base_id", "document_id"]
+
+
+def test_ensure_collection_reraises_other_errors() -> None:
+    from qdrant_client.http.exceptions import UnexpectedResponse
+
+    class BrokenClient:
+        def collection_exists(self, collection_name: str) -> bool:
+            return False
+
+        def create_collection(self, **_: object) -> None:
+            raise UnexpectedResponse(
+                status_code=500,
+                reason_phrase="Internal Server Error",
+                content=b"boom",
+                headers=None,
+            )
+
+    store = QdrantVectorStore(client=BrokenClient(), collection="c", dimension=3)
+
+    with pytest.raises(UnexpectedResponse):
+        store.ensure_collection()
