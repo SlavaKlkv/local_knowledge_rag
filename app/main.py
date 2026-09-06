@@ -1,7 +1,10 @@
 """Точка входа FastAPI-приложения."""
 
+from pathlib import Path
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routers import (
     auth,
@@ -47,7 +50,26 @@ def create_app() -> FastAPI:
     app.include_router(search.router)
     app.include_router(conversations.router)
     app.include_router(chat.router)
+    _mount_web_ui(app)
     return app
+
+
+def _mount_web_ui(app: FastAPI) -> None:
+    """Отдаёт веб-интерфейс тем же приложением, что и API.
+
+    Интерфейс — статика без сборки, поэтому его достаточно смонтировать:
+    отдельный процесс, node-тулчейн и настройка CORS не нужны, а запросы
+    из браузера идут на тот же origin, что и страница.
+    """
+    static_dir = Path(__file__).parent / "web" / "static"
+    if not static_dir.is_dir():  # pragma: no cover - только битая сборка
+        return
+
+    app.mount("/ui", StaticFiles(directory=static_dir), name="ui")
+
+    @app.get("/", include_in_schema=False)
+    async def index() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
 
 app = create_app()

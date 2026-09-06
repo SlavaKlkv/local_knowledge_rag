@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Knowledge RAG</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <span>Local Knowledge RAG</span>
+      </div>
+      <div class="topbar-right">
+        <span class="pill pill-local" title="Инференс идёт на этой машине">
+          локально
+        </span>
+        <span id="ring-summary" class="muted"></span>
+        <button id="logout" class="ghost" hidden>Выйти</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <!-- Вход -->
+      <section id="auth-view" class="centered" hidden>
+        <form id="auth-form" class="card auth-card">
+          <h1>Вход</h1>
+          <p class="muted">
+            Аккаунт локальный: он живёт в вашей базе и никуда не отправляется.
+          </p>
+          <label>
+            Email
+            <input id="auth-email" type="email" required value="demo@example.com" />
+          </label>
+          <label>
+            Пароль
+            <input
+              id="auth-password"
+              type="password"
+              required
+              minlength="8"
+              value="demo-password"
+            />
+          </label>
+          <div class="row">
+            <button type="submit" class="primary">Войти</button>
+            <button type="button" id="register" class="ghost">
+              Зарегистрироваться
+            </button>
+          </div>
+          <p id="auth-error" class="error" hidden></p>
+        </form>
+      </section>
+
+      <!-- Рабочая область -->
+      <section id="main-view" class="layout" hidden>
+        <aside class="sidebar">
+          <div class="sidebar-block">
+            <div class="sidebar-head">
+              <h2>Базы знаний</h2>
+              <button id="kb-new" class="ghost small">+</button>
+            </div>
+            <ul id="kb-list" class="kb-list"></ul>
+          </div>
+
+          <div class="sidebar-block">
+            <h2>Документы</h2>
+            <ul id="doc-list" class="doc-list">
+              <li class="muted">Выберите базу знаний</li>
+            </ul>
+            <label class="upload">
+              <input id="upload-input" type="file" hidden />
+              <span>Загрузить документ</span>
+            </label>
+            <p class="muted tiny">PDF, DOCX, HTML, Markdown, TXT — до 50 МБ</p>
+          </div>
+
+          <div class="sidebar-block">
+            <h2>Кольцо моделей</h2>
+            <ul id="ring-list" class="ring-list"></ul>
+          </div>
+        </aside>
+
+        <div class="content">
+          <nav class="tabs">
+            <button class="tab active" data-tab="chat">Вопрос-ответ</button>
+            <button class="tab" data-tab="search">Поиск</button>
+          </nav>
+
+          <div id="tab-chat" class="tab-panel">
+            <div id="messages" class="messages">
+              <div class="empty">
+                <h3>Задайте вопрос по документам</h3>
+                <p class="muted">
+                  Ответ собирается только из найденных фрагментов. Если данных
+                  не хватает, система скажет об этом прямо, а не придумает
+                  ответ.
+                </p>
+                <div id="suggestions" class="suggestions"></div>
+              </div>
+            </div>
+            <form id="chat-form" class="composer">
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Например: как устроено кольцо моделей?"
+                autocomplete="off"
+                required
+              />
+              <button type="submit" class="primary">Спросить</button>
+            </form>
+          </div>
+
+          <div id="tab-search" class="tab-panel" hidden>
+            <form id="search-form" class="composer">
+              <input
+                id="search-input"
+                type="text"
+                placeholder="Поиск по фрагментам без генерации"
+                autocomplete="off"
+                required
+              />
+              <button type="submit" class="primary">Найти</button>
+            </form>
+            <div id="search-results" class="results"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/ui/app.js"></script>
+  </body>
+</html>
