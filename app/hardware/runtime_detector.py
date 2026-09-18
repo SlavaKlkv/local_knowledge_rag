@@ -72,15 +72,51 @@ class RuntimeDetector:
         base_url = self._ollama_url if runtime == InferenceRuntime.OLLAMA else self._vllm_url
         try:
             response = self._http_get(health_url, timeout=self._timeout_s)
-        except httpx.HTTPError as exc:
+        except httpx.TimeoutException:
             return RuntimeAvailability(
-                runtime=runtime, available=False, base_url=base_url, detail=str(exc)
+                runtime=runtime,
+                available=False,
+                base_url=base_url,
+                detail=(
+                    f"Не ответил за {self._timeout_s:.0f} с по адресу {base_url} — "
+                    "запущен, но перегружен или завис"
+                ),
+            )
+        except httpx.HTTPError:
+            return RuntimeAvailability(
+                runtime=runtime,
+                available=False,
+                base_url=base_url,
+                detail=f"Не отвечает по адресу {base_url} — похоже, не запущен",
             )
         if response.status_code >= 400:
             return RuntimeAvailability(
                 runtime=runtime,
                 available=False,
                 base_url=base_url,
-                detail=f"HTTP {response.status_code}",
+                detail=self._bad_status_detail(runtime, base_url, response.status_code),
             )
         return RuntimeAvailability(runtime=runtime, available=True, base_url=base_url)
+
+    @staticmethod
+    def _bad_status_detail(runtime: InferenceRuntime, base_url: str, status: int) -> str:
+        """Ответ пришёл, но не тот: по адресу кто-то слушает.
+
+        Код состояния остаётся в тексте — без него не понять, чинить ли
+        сам сервис или искать, кто занял порт, — но ведущей становится
+        причина, а не номер.
+        """
+        if status == 404:
+            return (
+                f"По адресу {base_url} отвечает не {runtime} — порт занят другим "
+                f"сервисом или адрес указан неверно (HTTP {status})"
+            )
+        if status >= 500:
+            return (
+                f"{runtime} по адресу {base_url} отвечает с ошибкой — запущен, "
+                f"но не готов принимать запросы (HTTP {status})"
+            )
+        return (
+            f"{runtime} по адресу {base_url} отклонил проверку доступности "
+            f"(HTTP {status})"
+        )

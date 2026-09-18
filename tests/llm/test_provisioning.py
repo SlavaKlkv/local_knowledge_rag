@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 
@@ -160,7 +162,156 @@ def test_unreachable_runtime_fails_the_download_with_inference_error(
     assert provisioner.progress("qwen3:4b").state == DownloadState.FAILED
 
 
-def _stream_stub(lines: list[str]):
+def test_cancel_stops_consuming_the_ollama_stream(monkeypatch, provisioner):
+    """Остановка не тратит сеть и диск на оставшуюся часть модели."""
+    consumed: list[str] = []
+
+    def lines():
+        yield '{"status": "downloading", "total": 1000, "completed": 250}'
+        provisioner.cancel_download("qwen3:4b")
+        for line in ('{"total": 1000, "completed": 900}', '{"status": "success"}'):
+            consumed.append(line)
+            yield line
+
+    monkeypatch.setattr("app.llm.provisioning.httpx.stream", _stream_stub(lines()))
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+
+    progress = provisioner.run_download("qwen3:4b")
+
+    assert progress.state == DownloadState.CANCELLED
+    assert progress.completed_bytes == 250
+    assert consumed == ['{"total": 1000, "completed": 900}']
+
+
+def test_cancel_before_the_download_starts_prevents_the_request(
+    monkeypatch, provisioner
+):
+    def forbidden_stream(*args, **kwargs):
+        raise AssertionError("отменённая загрузка не должна ходить в runtime")
+
+    monkeypatch.setattr("app.llm.provisioning.httpx.stream", forbidden_stream)
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+    provisioner.cancel_download("qwen3:4b")
+
+    progress = provisioner.run_download("qwen3:4b")
+
+    assert progress.state == DownloadState.CANCELLED
+
+
+def test_cancel_of_a_finished_download_changes_nothing(monkeypatch, provisioner):
+    monkeypatch.setattr(
+        "app.llm.provisioning.httpx.stream", _stream_stub(['{"status": "success"}'])
+    )
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+    provisioner.run_download("qwen3:4b")
+
+    progress = provisioner.cancel_download("qwen3:4b")
+
+    assert progress.state == DownloadState.COMPLETED
+
+
+def test_cancel_of_a_never_started_download_is_not_found(provisioner):
+    with pytest.raises(NotFoundError):
+        provisioner.cancel_download("qwen3:4b")
+
+
+def test_cancelled_model_can_be_downloaded_again(monkeypatch, provisioner):
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+    provisioner.cancel_download("qwen3:4b")
+    monkeypatch.setattr(
+        "app.llm.provisioning.httpx.stream",
+        _stream_stub(['{"total": 10, "completed": 10}']),
+    )
+
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+    progress = provisioner.run_download("qwen3:4b")
+
+    assert progress.state == DownloadState.COMPLETED
+
+
+def _delete_stub(status_code: int):
+    def request(method, url, **kwargs):
+        assert method == "DELETE"
+        return httpx.Response(status_code, request=httpx.Request(method, url))
+
+    return request
+
+
+def test_delete_removes_registered_weights(monkeypatch, provisioner):
+    monkeypatch.setattr("app.llm.provisioning.httpx.request", _delete_stub(200))
+
+    removal = provisioner.delete_model("qwen3:4b")
+
+    assert removal.deleted is True
+
+
+def test_delete_of_an_interrupted_download_reports_nothing_was_registered(
+    monkeypatch, provisioner
+):
+    """Прерванная загрузка не регистрирует модель — runtime отвечает 404."""
+    monkeypatch.setattr("app.llm.provisioning.httpx.request", _delete_stub(404))
+
+    removal = provisioner.delete_model("gemma3:4b")
+
+    assert removal.deleted is False
+    assert removal.partials_deleted == 0
+
+
+def test_delete_during_download_stops_pull_and_removes_its_partials(
+    monkeypatch, tmp_path
+):
+    """Удаляются только partial-файлы digest'а из потока этой загрузки."""
+    digest = "sha256:" + "a" * 64
+    own_partial = tmp_path / (digest.replace(":", "-") + "-partial")
+    own_part = tmp_path / (digest.replace(":", "-") + "-partial-0")
+    foreign_partial = tmp_path / ("sha256-" + "b" * 64 + "-partial")
+    for path in (own_partial, own_part, foreign_partial):
+        path.write_bytes(b"download")
+    provisioner = ModelProvisioner(FakeProvider(), blobs_path=tmp_path)
+
+    def lines():
+        yield json.dumps({"digest": digest, "total": 1000, "completed": 250})
+        removal = provisioner.delete_model("qwen3:4b")
+        assert removal.partials_deleted == 2
+        yield '{"total": 1000, "completed": 1000}'
+
+    monkeypatch.setattr("app.llm.provisioning.httpx.request", _delete_stub(404))
+    monkeypatch.setattr("app.llm.provisioning.httpx.stream", _stream_stub(lines()))
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+
+    progress = provisioner.run_download("qwen3:4b")
+
+    assert progress.state == DownloadState.CANCELLED
+    assert not own_partial.exists()
+    assert not own_part.exists()
+    assert foreign_partial.exists()
+    assert provisioner.all_progress() == []
+
+
+def test_delete_forgets_the_download_progress(monkeypatch, provisioner):
+    """Строка «отменена · 8%» не должна пережить удаление весов."""
+    provisioner.start_download("qwen3:4b", HardwareProfile.LIGHT)
+    provisioner.cancel_download("qwen3:4b")
+    monkeypatch.setattr("app.llm.provisioning.httpx.request", _delete_stub(404))
+
+    provisioner.delete_model("qwen3:4b")
+
+    assert provisioner.all_progress() == []
+    with pytest.raises(NotFoundError):
+        provisioner.progress("qwen3:4b")
+
+
+def test_delete_reports_an_unreachable_runtime(monkeypatch, provisioner):
+    def broken(*args, **kwargs):
+        raise httpx.ConnectError("нет соединения")
+
+    monkeypatch.setattr("app.llm.provisioning.httpx.request", broken)
+
+    with pytest.raises(InferenceError, match="Не удалось удалить"):
+        provisioner.delete_model("qwen3:4b")
+
+
+def _stream_stub(lines):
     class _Response:
         def raise_for_status(self):
             return None

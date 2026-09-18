@@ -24,6 +24,12 @@ class RingLLMProvider(LocalLLMProvider):
     def ring(self) -> ModelRing:
         return self._ring
 
+    @property
+    def is_local(self) -> bool:
+        # Кольцо ничего не исполняет само — локальность целиком определяется
+        # тем runtime'ом, которому оно передаёт вызовы.
+        return self._ring.provider.is_local
+
     def generate(self, request: GenerationRequest, model: str) -> GenerationResult:
         outcome = self._ring.generate(request)
         self.last_outcome = outcome

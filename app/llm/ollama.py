@@ -18,6 +18,7 @@ from app.llm.base import (
 
 class OllamaProvider(LocalLLMProvider):
     name = "ollama"
+    is_local = True
 
     def __init__(self, base_url: str | None = None, timeout_s: float | None = None) -> None:
         settings = get_settings()

@@ -44,6 +44,13 @@ class LocalLLMProvider(ABC):
 
     name: str
 
+    # Уходит ли запрос за пределы машины пользователя. Интерфейс обещает
+    # локальность, поэтому по умолчанию True, а провайдер к удалённому API
+    # обязан объявить False: на этом признаке держится отметка в UI, и
+    # хардкодить там список локальных рантаймов нельзя — новый провайдер
+    # добавляют в app/llm, а не во фронтенд.
+    is_local: bool = True
+
     @abstractmethod
     def generate(self, request: GenerationRequest, model: str) -> GenerationResult: ...
 

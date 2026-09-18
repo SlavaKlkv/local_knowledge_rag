@@ -1,5 +1,6 @@
 import pytest
 
+from app.core.config import get_settings
 from app.core.errors import InferenceError
 from app.hardware.profiles import ModelRingEntry
 from app.llm.base import GenerationRequest, GenerationResult, LocalLLMProvider, ModelInfo
@@ -110,6 +111,36 @@ def test_timeout_budget_stops_further_attempts():
 
     # Бюджет 50с исчерпывается уже после первой попытки длиной 100с.
     assert len(provider.calls) == 1
+
+
+def test_timed_out_model_hands_the_request_to_the_next_one():
+    """Дефолтный бюджет обязан переживать таймаут одной модели.
+
+    Пока он был меньше INFERENCE_TIMEOUT_S, зависшая на весь таймаут
+    модель израсходовала его в одиночку и fallback не наступал никогда.
+    """
+    settings = get_settings()
+    clock = FakeClock()
+
+    class TimingOutProvider(FakeProvider):
+        def generate(self, request, model):
+            if model in self.failing_models:
+                clock.advance(settings.inference_timeout_s)
+            return super().generate(request, model)
+
+    provider = TimingOutProvider(failing_models={"qwen3:4b"})
+    ring = ModelRing(
+        provider,
+        _entries(),
+        max_attempts=settings.model_ring_max_attempts,
+        timeout_budget_s=settings.model_ring_timeout_budget_s,
+        clock=clock,
+    )
+
+    outcome = ring.generate(_request())
+
+    assert provider.calls == ["qwen3:4b", "gemma3:4b"]
+    assert outcome.result.model == "gemma3:4b"
 
 
 def test_repeated_failures_trigger_cooldown_and_skip_the_model():
