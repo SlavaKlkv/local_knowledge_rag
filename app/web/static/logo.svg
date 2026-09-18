@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <style>
+    :root { color: #171719; }
+    @media (prefers-color-scheme: dark) { :root { color: #f4f4f5; } }
+  </style>
+  <circle cx="24" cy="24" r="19" fill="none" stroke="currentColor" stroke-width="2.5" opacity=".72"/>
+  <rect x="12" y="12" width="10" height="10" rx="3" fill="currentColor"/>
+  <path d="M27 15h8M27 20h5" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" opacity=".72"/>
+  <g fill="none" stroke="currentColor" stroke-width="2" opacity=".58">
+    <rect x="25" y="26" width="11" height="7" rx="2"/>
+    <rect x="15" y="33" width="7" height="5" rx="2"/>
+  </g>
+</svg>

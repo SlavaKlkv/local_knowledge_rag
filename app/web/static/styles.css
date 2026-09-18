@@ -1,72 +1,55 @@
-/* Палитра нейтральная: выделение и основные действия несут графит, белый и
-   серый. Красный, зелёный и оранжевый остаются сигнальными — они говорят
-   только о статусе документа, здоровье модели и отказе ответить. */
+/* Чёрный — основа интерфейса. Поверхности отделяются от него небольшим
+   изменением светлоты; цвет остаётся только у операционных статусов. */
 :root {
-  --bg: #f5f5f4;
-  --surface: #ffffff;
-  --border: #dcdad6;
-  --text: #17171a;
-  --muted: #6f6f74;
-  --ink: #26262b;
-  --accent: #26262b;
-  --accent-soft: #e8e6e2;
-  --ok: #17803d;
-  --ok-bg: #e7f6ec;
-  --warn: #b45309;
-  --warn-bg: #fef3c7;
-  --danger: #b42318;
-  --danger-bg: #fee4e2;
-  --notice-bg: #fffbeb;
-  --notice-border: #fde68a;
-  --radius: 10px;
-  color-scheme: light;
-  accent-color: #26262b;
-}
-
-/* Тема: системная по умолчанию, а выбор пользователя ставит на <html>
-   data-theme и перебивает системный запрос в обе стороны. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #131315;
-    --surface: #1b1b1e;
-    --border: #33333a;
-    --text: #e9e8e6;
-    --muted: #9b9ba2;
-    --ink: #e9e8e6;
-    --accent: #f2f1ef;
-    --accent-soft: #33333a;
-    --ok: #5bd68a;
-    --ok-bg: #17301f;
-    --warn: #e3b341;
-    --warn-bg: #33280f;
-    --danger: #ff8078;
-    --danger-bg: #3a1d1b;
-    --notice-bg: #2a2410;
-    --notice-border: #4d4318;
-    color-scheme: dark;
-    accent-color: #f2f1ef;
-  }
-}
-
-:root[data-theme="dark"] {
-  --bg: #131315;
-  --surface: #1b1b1e;
-  --border: #33333a;
-  --text: #e9e8e6;
-  --muted: #9b9ba2;
-  --ink: #e9e8e6;
-  --accent: #f2f1ef;
-  --accent-soft: #33333a;
-  --ok: #5bd68a;
-  --ok-bg: #17301f;
-  --warn: #e3b341;
-  --warn-bg: #33280f;
-  --danger: #ff8078;
-  --danger-bg: #3a1d1b;
-  --notice-bg: #2a2410;
-  --notice-border: #4d4318;
+  /* Масштаб body (см. zoom ниже). Высоты в vh задаются во внешних пикселях и
+     zoom не учитывают, поэтому все calc() с vh делятся на эту величину. */
+  --zoom: 1;
+  --bg: #000000;
+  --topbar: rgb(0 0 0 / 0.88);
+  --surface: #0b0b0c;
+  --surface-raised: #111113;
+  --border: #262629;
+  --border-strong: #3a3a3e;
+  --text: #f4f4f5;
+  --muted: #97979f;
+  --ink: #f4f4f5;
+  --accent: #ffffff;
+  --accent-soft: #1b1b1e;
+  --ok: #65d98a;
+  --ok-bg: #102a19;
+  --warn: #e9bb55;
+  --warn-bg: #2b220e;
+  --danger: #ff8580;
+  --danger-bg: #351817;
+  --notice-bg: #211c0c;
+  --notice-border: #514313;
+  --radius: 14px;
   color-scheme: dark;
-  accent-color: #f2f1ef;
+  accent-color: #f4f4f5;
+}
+
+:root[data-theme="light"] {
+  --bg: #f3f3f2;
+  --topbar: rgb(255 255 255 / 0.9);
+  --surface: #ffffff;
+  --surface-raised: #fafafa;
+  --border: #dededb;
+  --border-strong: #c5c5c1;
+  --text: #171719;
+  --muted: #6b6b70;
+  --ink: #171719;
+  --accent: #171719;
+  --accent-soft: #e9e9e6;
+  --ok: #18743a;
+  --ok-bg: #e5f5e9;
+  --warn: #9d4c08;
+  --warn-bg: #fcf0c9;
+  --danger: #ad2923;
+  --danger-bg: #fce6e4;
+  --notice-bg: #fff9e9;
+  --notice-border: #ead47c;
+  color-scheme: light;
+  accent-color: #171719;
 }
 
 * {
@@ -81,9 +64,26 @@
 
 body {
   margin: 0;
+  min-width: 320px;
+  min-height: calc(100vh / var(--zoom));
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font: 15px/1.55 Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* На широком настольном экране увеличиваем плотность интерфейса без изменения
+   масштаба браузера. 1.215 = прежние внутренние 1.35, умноженные на 0.9: тот же
+   вид, что был при масштабе Chrome 90%, но уже при обычных 100%. Порог тоже
+   пересчитан (1600 × 0.9), чтобы режим включался на тех же экранах. */
+@media (min-width: 1440px) {
+  :root {
+    --zoom: 1.215;
+  }
+
+  body {
+    zoom: var(--zoom);
+  }
 }
 
 /* --- Шапка --- */
@@ -92,24 +92,59 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 12px 20px;
-  background: var(--surface);
+  min-height: 64px;
+  padding: 12px 24px;
+  background: var(--topbar);
   border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: blur(16px);
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: -0.015em;
 }
 
 .logo {
-  width: 18px;
-  height: 18px;
-  border-radius: 5px;
-  background: var(--ink);
-  box-shadow: inset 0 0 0 2px var(--surface), inset 0 0 0 3px var(--ink);
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  overflow: visible;
+  color: var(--ink);
+  filter: drop-shadow(0 0 8px rgb(255 255 255 / 0.1));
+}
+
+.logo-ring,
+.logo-fragment,
+.logo-citation {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.logo-ring {
+  stroke-width: 2.5;
+  opacity: 0.72;
+}
+
+.logo-fragment {
+  stroke-width: 2;
+  opacity: 0.58;
+}
+
+.logo-source {
+  fill: currentColor;
+}
+
+.logo-citation {
+  stroke-width: 2.25;
+  opacity: 0.72;
 }
 
 .topbar-right {
@@ -130,13 +165,20 @@ body {
   color: var(--ok);
 }
 
+/* Не ошибка, но и не то, ради чего этот проект существует: удалённый runtime
+   отмечается предупреждающим цветом, а не зелёным. */
+.pill-remote {
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
 /* Переключатель темы: сегменты вместо выпадающего списка — три состояния
    видны сразу, и выбранное читается без раскрытия. */
 .theme-switch {
   display: flex;
   gap: 2px;
   padding: 2px;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
 }
@@ -156,7 +198,7 @@ body {
 }
 
 .theme-switch button[aria-pressed="true"] {
-  background: var(--surface);
+  background: var(--accent-soft);
   color: var(--text);
   font-weight: 600;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.12);
@@ -181,16 +223,36 @@ button {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 8px 14px;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease;
 }
 
 button.primary {
   background: var(--ink);
-  color: var(--surface);
+  color: var(--bg);
+  border-color: var(--ink);
+  font-weight: 650;
+}
+
+button.primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+/* Недоступность видна на любой кнопке, а не только на основной: иначе
+   «Добавить» для неустановленной модели выглядит рабочей и клик по ней
+   читается как поломка. */
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 button.primary:disabled {
   opacity: 0.55;
-  cursor: default;
+}
+
+button.ghost:disabled {
+  border-color: var(--border);
+  color: var(--muted);
 }
 
 button.ghost {
@@ -199,8 +261,24 @@ button.ghost {
   color: var(--text);
 }
 
+button.ghost:hover:not(:disabled) {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
+}
+
 button.small {
   padding: 2px 9px;
+}
+
+button.danger {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+button.danger:hover:not(:disabled) {
+  background: var(--danger);
+  color: var(--surface-raised);
 }
 
 /* Штатное кольцо фокуса у Chrome синее и выпадает из палитры,
@@ -223,7 +301,13 @@ input[type="password"] {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+  color: var(--text);
   width: 100%;
+  min-height: 42px;
+}
+
+input::placeholder {
+  color: var(--muted);
 }
 
 /* --- Вход --- */
@@ -234,7 +318,7 @@ input[type="password"] {
 }
 
 .card {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
@@ -245,6 +329,7 @@ input[type="password"] {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 0.5);
 }
 
 .auth-card h1 {
@@ -273,8 +358,10 @@ input[type="password"] {
 .layout {
   display: grid;
   grid-template-columns: 300px 1fr;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 18px;
+  width: min(1500px, 100%);
+  margin: 0 auto;
+  padding: 20px 24px 28px;
   align-items: start;
 }
 
@@ -285,7 +372,7 @@ input[type="password"] {
 }
 
 .sidebar-block {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px;
@@ -309,6 +396,29 @@ input[type="password"] {
   margin: 0;
 }
 
+.kb-form {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.kb-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+
+.kb-form input:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
 .kb-list,
 .doc-list,
 .ring-list {
@@ -320,19 +430,60 @@ input[type="password"] {
   gap: 6px;
 }
 
-.kb-list li button {
-  width: 100%;
+.kb-list li {
+  /* Крестик прижат к правому краю строки, имя базы забирает остальное. */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kb-list li > button:first-child {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-align: left;
   background: transparent;
   border-color: transparent;
   padding: 7px 10px;
 }
 
-.kb-list li button:hover {
-  background: var(--bg);
+/* Крестик проявляется на наведении и фокусе: в спокойном состоянии список
+   баз остаётся списком, а не рядом кнопок удаления. */
+.kb-list li .icon-button {
+  opacity: 0;
 }
 
-.kb-list li.active button {
+.kb-list li:hover .icon-button,
+.kb-list li .icon-button:focus-visible {
+  opacity: 1;
+}
+
+/* Карандаш не про удаление — своего фона у .icon-button нет, задаём здесь. */
+.kb-list li .icon-button.rename:hover {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.kb-rename {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-rename input {
+  flex: 1;
+  min-width: 0;
+}
+
+.kb-list li > button:first-child:hover {
+  background: var(--accent-soft);
+}
+
+.kb-list li.active > button:first-child {
   background: var(--accent-soft);
   color: var(--text);
   font-weight: 600;
@@ -348,6 +499,10 @@ input[type="password"] {
 }
 
 .doc-name {
+  /* Имя забирает всю свободную ширину, поэтому статус и кнопка удаления
+     стоят вплотную у правого края, а не разъезжаются по строке. */
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -427,10 +582,11 @@ input[type="password"] {
 
 /* --- Контент --- */
 .content {
-  background: var(--surface);
+  background: var(--surface-raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  min-height: calc(100vh - 110px);
+  min-height: calc(100vh / var(--zoom) - 112px);
+  min-height: calc(100dvh / var(--zoom) - 112px);
   display: flex;
   flex-direction: column;
 }
@@ -492,9 +648,14 @@ input[type="password"] {
 }
 
 .suggestions button {
-  background: var(--bg);
+  background: var(--surface);
   border-color: var(--border);
   font-size: 13px;
+}
+
+.suggestions button:hover {
+  background: var(--accent-soft);
+  border-color: var(--border-strong);
 }
 
 .msg {
@@ -504,14 +665,14 @@ input[type="password"] {
 .msg-user {
   align-self: flex-end;
   background: var(--ink);
-  color: var(--surface);
+  color: var(--bg);
   padding: 10px 14px;
   border-radius: 12px 12px 2px 12px;
 }
 
 .msg-bot {
   align-self: flex-start;
-  background: var(--bg);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px 12px 12px 2px;
   padding: 14px;
@@ -584,6 +745,7 @@ input[type="password"] {
   gap: 10px;
   padding: 14px;
   border-top: 1px solid var(--border);
+  background: var(--surface-raised);
 }
 
 .results {
@@ -596,6 +758,7 @@ input[type="password"] {
 
 .hit {
   border: 1px solid var(--border);
+  background: var(--surface);
   border-radius: 8px;
   padding: 12px;
 }
@@ -640,7 +803,641 @@ input[type="password"] {
   transform: translateX(-50%);
   background: var(--text);
   color: var(--bg);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 16px 44px rgb(0 0 0 / 0.5);
   padding: 10px 16px;
   border-radius: 8px;
   font-size: 13px;
+}
+
+/* --- Удаление документа --- */
+.icon-button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+/* --- Настройка кольца --- */
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  /* Прокручивается сам оверлей: карточка выше экрана иначе упиралась бы
+     в его край, а её низ оставался недоступен. */
+  align-items: flex-start;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 24px;
+  background: rgb(0 0 0 / 76%);
+  backdrop-filter: blur(8px);
+  z-index: 20;
+}
+
+.modal-card {
+  /* margin: auto центрирует, пока карточка помещается, и отключается,
+     когда она выше экрана. */
+  margin: auto;
+  width: min(640px, 100%);
+  max-height: calc(100vh / var(--zoom) - 48px);
+  max-height: calc(100dvh / var(--zoom) - 48px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  box-shadow: 0 28px 90px rgb(0 0 0 / 0.7);
+}
+
+.modal-body {
+  /* Скроллится содержимое, шапка с «Закрыть» остаётся на месте. */
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.modal-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* Сообщение о судьбе состава — в самом окне настройки: тост на главной
+   остаётся за модалкой и до пользователя не доходит. */
+.ring-message {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  border: 1px solid var(--border);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 250ms ease, transform 250ms ease;
+}
+
+.ring-message-hiding {
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+}
+
+#ring-message-text {
+  flex: 1;
+}
+
+/* Ошибки живут до ручного закрытия; подтверждения также можно убрать сразу. */
+.ring-message-close {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1.2;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.ring-message-close:hover {
+  opacity: 1;
+}
+
+.ring-message-error {
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ring-message-ok {
+  background: var(--ok-bg);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+/* Подтверждение — короткая карточка: заголовок, фраза и две кнопки. */
+/* Поверх модалки настроек: подтверждение вызывается из неё. */
+#confirm-dialog {
+  z-index: 25;
+}
+
+.confirm-card {
+  width: min(420px, 100%);
+}
+
+.confirm-text {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.modal-body section {
+  margin-top: 12px;
+}
+
+.modal-body h3 {
+  margin: 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* Каждый смысловой блок — отдельная поверхность. Так сводка, редактирование
+   состава и технические сведения о runtime не выглядят одним длинным списком. */
+.ring-section {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.ring-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.ring-section-note {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ring-composition {
+  border-color: var(--border-strong);
+  background: var(--surface-raised);
+  box-shadow: 0 10px 28px rgb(0 0 0 / 0.18);
+}
+
+.ring-source {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.config-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 7px 18px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.config-list dt {
+  color: var(--muted);
+}
+
+.config-list dd {
+  margin: 0;
+}
+
+.config-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.config-items li {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.config-items li.draggable-row {
+  cursor: grab;
+}
+
+.config-items li.dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+/* Место, куда встанет строка: подсветка сверху, по направлению чтения списка. */
+.config-items li.drop-target {
+  border-color: var(--border-strong);
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.config-items li > p {
+  margin: 4px 0 0;
+}
+
+.config-items li > button {
+  margin-top: 8px;
+}
+
+.config-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ring-composition > .tiny {
+  margin: -4px 0 14px;
+  max-width: 62ch;
+  line-height: 1.45;
+}
+
+.ring-composition .config-items li {
+  position: relative;
+  padding-left: 14px;
+  background: var(--surface);
+}
+
+.model-identity {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.model-name {
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-role {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.model-badges {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.field-label {
+  margin: 14px 0 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.command {
+  margin: 6px 0 0;
+  padding: 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 12px;
+  overflow-x: auto;
+}
+
+.notice {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  background: var(--notice-bg);
+  border: 1px solid var(--notice-border);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .topbar {
+    align-items: flex-start;
+    padding: 12px 16px;
+  }
+
+  .topbar-right {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+
+  #ring-summary {
+    display: none;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+    padding: 14px 16px 20px;
+  }
+
+  .sidebar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .sidebar-block:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .content {
+    min-height: 620px;
+  }
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    position: static;
+    flex-direction: column;
+  }
+
+  .topbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .theme-switch {
+    order: 3;
+    width: 100%;
+  }
+
+  .theme-switch button {
+    flex: 1;
+  }
+
+  .sidebar {
+    display: flex;
+  }
+
+  .composer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .content {
+    min-height: 560px;
+  }
+
+  .modal {
+    padding: 12px;
+  }
+
+  .modal-card {
+    max-height: calc(100vh - 24px);
+    max-height: calc(100dvh - 24px);
+  }
+
+  .config-list {
+    grid-template-columns: 1fr;
+  }
+
+  .config-list dd {
+    margin-bottom: 8px;
+  }
+
+  .ring-section {
+    padding: 13px;
+  }
+
+  .ring-composition .config-row {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .model-badges {
+    order: 4;
+    width: calc(100% - 34px);
+    margin-left: 26px;
+    justify-content: flex-start;
+  }
+
+  .order-controls {
+    margin-left: auto;
+  }
+
+  .ring-actions,
+  .add-row {
+    flex-direction: column;
+  }
+}
+
+/* --- Состав кольца --- */
+.order {
+  display: grid;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-controls {
+  display: flex;
+  gap: 2px;
+}
+
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.icon-button:disabled:hover {
+  background: transparent;
+  color: var(--muted);
+}
+
+.order-controls .icon-button:hover:not(:disabled) {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+/* Происхождение модели: из кольца профиля или добавлена пользователем. */
+.tag {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tag-profile {
+  background: var(--accent-soft);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.tag-off-profile {
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--border-strong);
+}
+
+/* Свой выпадающий список кандидатов: нативный <select> рисует система,
+   и метки «вне профиля» / «не установлена» в него не помещаются. */
+.picker {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.picker-trigger {
+  width: 100%;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.picker-trigger:hover,
+.picker-trigger[aria-expanded="true"] {
+  border-color: var(--border-strong);
+}
+
+.picker-trigger::after {
+  content: "⌄";
+  position: absolute;
+  right: 10px;
+  top: 4px;
+  color: var(--muted);
+}
+
+.picker-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 16px;
+}
+
+.picker-menu {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+}
+
+.picker-group {
+  margin: 6px 8px 2px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.picker-option {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+}
+
+.picker-option:hover,
+.picker-option[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+
+.add-row {
+  margin-top: 10px;
+}
+
+/* Список занимает две трети строки, кнопка — оставшуюся треть. */
+.add-row .picker {
+  flex: 2 1 0;
+}
+
+.add-row > button {
+  flex: 1 1 0;
+}
+
+/* Фокусная рамка внутрь: наружу её срезает край прокручиваемого окна. */
+.add-row .picker-trigger:focus-visible {
+  outline-offset: -2px;
+}
+
+.modal-body .row {
+  margin-top: 14px;
+}
+
+.ring-actions {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.ring-runtimes {
+  background: transparent;
+}
+
+/* --- Подсказка с полным текстом --- */
+.tooltip {
+  position: fixed;
+  z-index: 30;
+  max-width: min(360px, 90vw);
+  padding: 6px 9px;
+  background: var(--ink);
+  color: var(--surface);
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 25%);
+  pointer-events: none;
 }
