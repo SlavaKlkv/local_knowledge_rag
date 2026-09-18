@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app.api.storage import DocumentStorage
 from app.core.config import get_settings
-from app.core.errors import ValidationError
+from app.core.errors import InferenceError, ValidationError
 from app.hardware.detector import HardwareDetector
 from app.hardware.profiles import (
     HardwareProfile,
@@ -18,6 +18,7 @@ from app.llm.base import LocalLLMProvider
 from app.llm.ollama import OllamaProvider
 from app.llm.provisioning import ModelProvisioner
 from app.llm.ring import ModelRing
+from app.llm.ring_config import RingConfigStore
 from app.llm.ring_provider import RingLLMProvider
 from app.llm.vllm import VLLMProvider
 from app.rag.context_builder import ContextBuilder
@@ -91,6 +92,23 @@ def get_active_profile() -> HardwareProfile:
 
 
 @lru_cache
+def get_ring_config_store() -> RingConfigStore:
+    return RingConfigStore(Path("storage/ring_config.json"))
+
+
+def _installed_model_names(provider: LocalLLMProvider) -> set[str] | None:
+    """Имена моделей runtime'а или None, если он недоступен.
+
+    None означает «проверить нечем»: недоступный runtime не повод вычистить
+    сохранённый состав кольца.
+    """
+    try:
+        return {info.name for info in provider.list_models()}
+    except InferenceError:
+        return None
+
+
+@lru_cache
 def get_llm_provider() -> LocalLLMProvider:
     # Флаг конфигурации переключает реализацию, а не ветвление в вызывающем
     # коде: AnswerGenerator/QueryRewriter всегда работают через единый
@@ -102,13 +120,45 @@ def get_llm_provider() -> LocalLLMProvider:
     settings = get_settings()
     ring = ModelRing(
         base_provider,
-        get_profile_definition(get_active_profile()).ring,
+        get_ring_config_store().resolve(
+            get_profile_definition(get_active_profile()).ring,
+            installed=_installed_model_names(base_provider),
+        ),
         max_attempts=settings.model_ring_max_attempts,
         timeout_budget_s=settings.model_ring_timeout_budget_s,
         cooldown_s=settings.model_ring_cooldown_s,
         failure_threshold=settings.model_ring_failure_threshold,
     )
     return RingLLMProvider(ring)
+
+
+def refreshed_llm_provider(
+    provider: LocalLLMProvider, installed: set[str] | None
+) -> LocalLLMProvider:
+    """Провайдер с кольцом, пересобранным, если модели в runtime'е сменились.
+
+    Кольцо кэшируется на процесс вместе с health-состояниями, поэтому
+    модель, удалённую из runtime'а уже после сборки, оно продолжало бы
+    держать в составе и показывать строкой «не установлена». Расхождение
+    видно по списку установленных: заметили — пересобрали.
+    """
+    if installed is None or not isinstance(provider, RingLLMProvider):
+        return provider
+    if all(member.model in installed for member in provider.ring.members):
+        return provider
+    reset_llm_provider()
+    return get_llm_provider()
+
+
+def reset_llm_provider() -> None:
+    """Пересобрать кольцо при следующем обращении.
+
+    Провайдер кэширован на процесс — в нём живут health-состояния моделей,
+    и терять их на каждом запросе нельзя. Смена состава кольца — как раз тот
+    случай, когда кэш обязан протухнуть: старые состояния относятся к другому
+    набору моделей.
+    """
+    get_llm_provider.cache_clear()
 
 
 @lru_cache

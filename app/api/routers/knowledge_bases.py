@@ -16,6 +16,7 @@ from app.api.auth import (
 from app.api.schemas import (
     KnowledgeBaseCreate,
     KnowledgeBaseRead,
+    KnowledgeBaseUpdate,
     PermissionGrant,
     PermissionRead,
 )
@@ -70,6 +71,33 @@ def get_knowledge_base(
     kb = db.get(KnowledgeBase, knowledge_base_id)
     if kb is None:
         raise NotFoundError(f"База знаний {knowledge_base_id} не найдена")
+    return kb
+
+
+@router.patch("/{knowledge_base_id}", response_model=KnowledgeBaseRead)
+def update_knowledge_base(
+    knowledge_base_id: uuid.UUID,
+    payload: KnowledgeBaseUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> KnowledgeBase:
+    """Переименование и правка описания. Редактору это доступно: имя базы —
+    часть её содержимого, а не право распоряжаться ею."""
+    require_role(db, user, knowledge_base_id, PermissionRole.EDITOR)
+    kb = db.get(KnowledgeBase, knowledge_base_id)
+    if kb is None:
+        raise NotFoundError(f"База знаний {knowledge_base_id} не найдена")
+
+    # exclude_unset, иначе не отличить «стереть описание» от «его не прислали».
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise ValidationError("Не переданы поля для изменения")
+    if "name" in fields:
+        kb.name = fields["name"]
+    if "description" in fields:
+        kb.description = fields["description"]
+    db.commit()
+    db.refresh(kb)
     return kb
 
 

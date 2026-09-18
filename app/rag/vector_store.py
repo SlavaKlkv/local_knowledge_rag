@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qm
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 from app.core.config import get_settings
 from app.rag.sparse import SparseVector
@@ -76,15 +77,25 @@ class QdrantVectorStore:
         а изоляция баз знаний применяется к каждому запросу.
         """
         if not self._client.collection_exists(self._collection):
-            self._client.create_collection(
-                collection_name=self._collection,
-                vectors_config={
-                    _DENSE_VECTOR_NAME: qm.VectorParams(
-                        size=self._dimension, distance=qm.Distance.COSINE
-                    ),
-                },
-                sparse_vectors_config={_SPARSE_VECTOR_NAME: qm.SparseVectorParams()},
-            )
+            try:
+                self._client.create_collection(
+                    collection_name=self._collection,
+                    vectors_config={
+                        _DENSE_VECTOR_NAME: qm.VectorParams(
+                            size=self._dimension, distance=qm.Distance.COSINE
+                        ),
+                    },
+                    sparse_vectors_config={
+                        _SPARSE_VECTOR_NAME: qm.SparseVectorParams()
+                    },
+                )
+            except UnexpectedResponse as exc:
+                # Проверка и создание не атомарны, а на пустой установке
+                # первые документы индексируются параллельно: воркеры
+                # приходят сюда одновременно, и все, кроме одного, получают
+                # 409. Коллекция при этом создана — это не ошибка.
+                if exc.status_code != 409:
+                    raise
         for field_name in ("knowledge_base_id", "document_id"):
             self._client.create_payload_index(
                 collection_name=self._collection,

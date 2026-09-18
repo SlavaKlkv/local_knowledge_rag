@@ -1,0 +1,33 @@
+# Изолированный стенд для записи демо (`docs/demo-recording-pipeline.md`).
+#
+#   docker compose -f docker-compose.yml -f docker-compose.demo.yml \
+#     -p demo-rec up -d --build api worker
+#
+# Все порты и хранилище разведены с рабочим стеком: запись создаёт и удаляет
+# базы знаний и переписывает состав кольца, поэтому трогать рабочие данные
+# она не должна, а рабочий стек при этом может продолжать работать.
+services:
+  postgres:
+    ports: !override
+      - "5434:5432"
+
+  qdrant:
+    ports: !override
+      - "6335:6333"
+      - "6336:6334"
+
+  redis:
+    ports: !override
+      - "6380:6379"
+
+  api:
+    volumes: !override
+      - ./storage-demo:/app/storage
+      - ./app/web/static:/app/app/web/static
+      - ${HOME}/.ollama/models/blobs:/ollama-blobs
+    ports: !override
+      - "8010:8000"
+
+  worker:
+    volumes: !override
+      - ./storage-demo:/app/storage

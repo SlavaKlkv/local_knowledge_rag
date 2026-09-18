@@ -81,7 +81,7 @@ class AnswerGenerator:
             model=self._model,
         )
         payload = _parse_payload(result.text)
-        answer_text = (payload.get("answer") or "").strip()
+        answer_text = _meaningful_answer(payload.get("answer"))
         citations = resolve_citations(payload.get("citations") or [], context)
         decision = self._policy.after_generation(
             has_answer=bool(payload.get("has_answer")) and bool(answer_text),
@@ -157,3 +157,16 @@ def _parse_payload(text: str) -> dict:
             pass
     # Ответ не разобран — трактуем как отсутствие подтверждённого ответа.
     return {"answer": "", "has_answer": False, "citations": []}
+
+
+def _meaningful_answer(raw: object) -> str:
+    """Ответ, в котором есть хоть что-то читаемое.
+
+    Модель может вернуть плейсхолдер («...») или строку из одних знаков
+    препинания. Формально поле заполнено, но пользователю показывать нечего,
+    и такой ответ должен уходить в отказ наравне с пустым.
+    """
+    text = (raw or "").strip() if isinstance(raw, str) else ""
+    if not any(ch.isalnum() for ch in text):
+        return ""
+    return text

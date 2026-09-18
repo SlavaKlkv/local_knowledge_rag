@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Knowledge RAG</title>
+    <link rel="icon" href="/ui/logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <svg
+          class="logo"
+          viewBox="0 0 48 48"
+          aria-hidden="true"
+          focusable="false"
+        >
+          <circle class="logo-ring" cx="24" cy="24" r="19" />
+          <rect class="logo-source" x="12" y="12" width="10" height="10" rx="3" />
+          <path class="logo-citation" d="M27 15h8M27 20h5" />
+          <rect class="logo-fragment" x="25" y="26" width="11" height="7" rx="2" />
+          <rect class="logo-fragment" x="15" y="33" width="7" height="5" rx="2" />
+        </svg>
+        <span>Local Knowledge RAG</span>
+      </div>
+      <div class="topbar-right">
+        <span id="runtime-pill" class="pill" hidden></span>
+        <span id="ring-summary" class="muted"></span>
+        <div
+          id="theme-switch"
+          class="theme-switch"
+          role="group"
+          aria-label="Тема оформления"
+        >
+          <button type="button" data-theme="light">Светлая</button>
+          <button type="button" data-theme="dark">Тёмная</button>
+          <button type="button" data-theme="system">Системная</button>
+        </div>
+        <button id="logout" class="ghost" hidden>Выйти</button>
+      </div>
+    </header>
+
+    <main id="app">
+      <!-- Вход -->
+      <section id="auth-view" class="centered" hidden>
+        <form id="auth-form" class="card auth-card">
+          <h1>Вход</h1>
+          <p class="muted">
+            Аккаунт локальный: он живёт в вашей базе и никуда не отправляется.
+          </p>
+          <label>
+            Email
+            <input id="auth-email" type="email" required value="demo@example.com" />
+          </label>
+          <label>
+            Пароль
+            <input
+              id="auth-password"
+              type="password"
+              required
+              minlength="8"
+              value="demo-password"
+            />
+          </label>
+          <div class="row">
+            <button type="submit" class="primary">Войти</button>
+            <button type="button" id="register" class="ghost">
+              Зарегистрироваться
+            </button>
+          </div>
+          <p id="auth-error" class="error" hidden></p>
+        </form>
+      </section>
+
+      <!-- Рабочая область -->
+      <section id="main-view" class="layout" hidden>
+        <aside class="sidebar">
+          <div class="sidebar-block">
+            <div class="sidebar-head">
+              <h2>Базы знаний</h2>
+              <button id="kb-new" class="ghost small">+</button>
+            </div>
+            <form id="kb-form" class="kb-form" hidden>
+              <input
+                id="kb-name"
+                type="text"
+                placeholder="Название базы"
+                maxlength="120"
+                autocomplete="off"
+              />
+              <button type="submit" class="ghost small">Создать</button>
+            </form>
+            <ul id="kb-list" class="kb-list"></ul>
+          </div>
+
+          <div class="sidebar-block">
+            <h2>Документы</h2>
+            <ul id="doc-list" class="doc-list">
+              <li class="muted">Выберите базу знаний</li>
+            </ul>
+            <label class="upload">
+              <input id="upload-input" type="file" hidden />
+              <span>Загрузить документ</span>
+            </label>
+            <p class="muted tiny">PDF, DOCX, HTML, Markdown, TXT — до 50 МБ</p>
+          </div>
+
+          <div class="sidebar-block">
+            <div class="sidebar-head">
+              <h2>Кольцо моделей</h2>
+              <button id="ring-setup" class="ghost small">Настроить</button>
+            </div>
+            <ul id="ring-list" class="ring-list"></ul>
+          </div>
+        </aside>
+
+        <div class="content">
+          <nav class="tabs">
+            <button class="tab active" data-tab="chat">Вопрос-ответ</button>
+            <button class="tab" data-tab="search">Поиск</button>
+          </nav>
+
+          <div id="tab-chat" class="tab-panel">
+            <div id="messages" class="messages">
+              <div class="empty">
+                <h3>Задайте вопрос по документам</h3>
+                <p class="muted">
+                  Ответ собирается только из найденных фрагментов. Если данных
+                  не хватает, система скажет об этом прямо, а не придумает
+                  ответ.
+                </p>
+                <div id="suggestions" class="suggestions"></div>
+              </div>
+            </div>
+            <form id="chat-form" class="composer">
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Вопрос по документам базы знаний"
+                autocomplete="off"
+                required
+              />
+              <button type="submit" class="primary">Спросить</button>
+            </form>
+          </div>
+
+          <div id="tab-search" class="tab-panel" hidden>
+            <form id="search-form" class="composer">
+              <input
+                id="search-input"
+                type="text"
+                placeholder="Поиск по фрагментам без генерации"
+                autocomplete="off"
+                required
+              />
+              <button type="submit" class="primary">Найти</button>
+            </form>
+            <div id="search-results" class="results"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Настройка кольца моделей -->
+    <div id="ring-dialog" class="modal" hidden>
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2>Настройка кольца моделей</h2>
+          <button id="ring-close" class="ghost small">Закрыть</button>
+        </div>
+        <div id="ring-message" class="ring-message" hidden>
+          <span id="ring-message-text"></span>
+          <button
+            id="ring-message-close"
+            class="ring-message-close"
+            type="button"
+            aria-label="Скрыть уведомление"
+            title="Скрыть уведомление"
+          >
+            ×
+          </button>
+        </div>
+        <div id="ring-config" class="modal-body"></div>
+      </div>
+    </div>
+
+    <!-- Подтверждение необратимых действий -->
+    <div id="confirm-dialog" class="modal" hidden>
+      <div class="modal-card confirm-card">
+        <div class="modal-head">
+          <h2 id="confirm-title">Подтвердите действие</h2>
+        </div>
+        <p id="confirm-text" class="confirm-text"></p>
+        <div class="confirm-actions">
+          <button id="confirm-cancel" class="ghost small">Отмена</button>
+          <button id="confirm-ok" class="danger small">Удалить</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="/ui/app.js"></script>
+  </body>
+</html>

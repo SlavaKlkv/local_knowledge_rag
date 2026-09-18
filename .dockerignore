@@ -8,6 +8,9 @@ __pycache__
 .mypy_cache
 tests
 docs
+# Демо-документы нужны в образе: ими наполняется база при первой
+# проверке (scripts/seed_demo.py).
+!docs/demo
 storage
 data
 models
@@ -16,5 +19,6 @@ models
 !.env.example
 *.md
 !README.md
+!docs/demo/*.md
 CLAUDE.md
 .claude

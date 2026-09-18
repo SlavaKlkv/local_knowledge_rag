@@ -1,0 +1,15 @@
+# Локальные удобства разработки. Compose подхватывает docker-compose.override.yml
+# автоматически, поэтому:
+#
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose up -d api
+#
+# Сам override в git не попадает: основной docker-compose.yml остаётся
+# продовым и самодостаточным, а образ — воспроизводимым.
+services:
+  api:
+    volumes:
+      # Статика фронтенда поверх копии из образа: правки CSS/JS видны после
+      # обновления страницы, без пересборки. Python-код по-прежнему живёт в
+      # образе — его изменения требуют `docker compose up -d --build api`.
+      - ./app/web/static:/app/app/web/static

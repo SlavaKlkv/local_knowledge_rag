@@ -18,6 +18,7 @@ from app.llm.base import (
 
 class OllamaProvider(LocalLLMProvider):
     name = "ollama"
+    is_local = True
 
     def __init__(self, base_url: str | None = None, timeout_s: float | None = None) -> None:
         settings = get_settings()
@@ -30,6 +31,13 @@ class OllamaProvider(LocalLLMProvider):
             "system": request.system,
             "prompt": request.prompt,
             "stream": False,
+            # Рассуждающие модели (qwen3 и подобные) по умолчанию тратят
+            # бюджет num_predict на размышления и возвращают их отдельным
+            # полем thinking, оставляя response пустым — генерация выглядит
+            # как отказ модели. Ответ нужен сразу, цепочка рассуждений в
+            # grounded-ответе не используется. Модели без thinking флаг
+            # игнорируют.
+            "think": False,
             "options": {"temperature": request.temperature},
         }
         if request.max_tokens:
