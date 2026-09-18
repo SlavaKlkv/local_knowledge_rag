@@ -26,10 +26,26 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Cross-encoder тянет torch (~2.5 ГБ в образе). Reranking — опциональная
-# ступень пайплайна: без этого extra работает NoOpReranker, поэтому
-# базовая установка и Docker-образ остаются лёгкими.
-reranking = ["sentence-transformers>=6.0.1"]
+# Cross-encoder тянет torch (~2.5 ГБ). Extra остаётся опциональным для
+# установки из исходников, но официальный Docker-образ включает его: там
+# качественная выдача должна работать сразу, без ручной пересборки.
+reranking = [
+    "sentence-transformers>=6.0.1",
+    # Фиксируем ветку, опубликованную и для macOS, и в CPU-only индексе Linux.
+    "torch==2.9.1",
+]
+
+# Linux-контейнер работает на CPU: обычный PyPI wheel torch подтягивает CUDA
+# runtime, который здесь не используется и сильно раздувает сборку.
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cpu", marker = "sys_platform == 'linux'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 dev = [

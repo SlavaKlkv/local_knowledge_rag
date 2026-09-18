@@ -57,19 +57,27 @@ services:
       # адрес для локального запуска (localhost), и внутри контейнера он
       # указывал бы на сам контейнер.
       OLLAMA_URL: ${DOCKER_OLLAMA_URL:-http://host.docker.internal:11434}
+      OLLAMA_BLOBS_PATH: /ollama-blobs
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY обязателен для запуска}
-      # В образ не ставится extra "reranking" (torch тянет ~2.5 ГБ), поэтому
-      # в контейнере reranking выключен: иначе /search и /chat падают на
-      # отсутствующем sentence-transformers. Включать вместе со сборкой
-      # образа с этим extra.
-      RERANK_ENABLED: ${RERANK_ENABLED:-false}
+      # Cross-encoder и его веса уже находятся в Docker-образе. Отключение
+      # остаётся доступным для слабого железа и сравнения качества с чистым RRF.
+      RERANK_ENABLED: ${RERANK_ENABLED:-true}
       # Детекция железа внутри контейнера видит лимиты Docker, а не хост,
       # поэтому профиль на macOS почти всегда занижается до light —
       # переопределяется вручную.
       HARDWARE_PROFILE_OVERRIDE: ${HARDWARE_PROFILE_OVERRIDE:-}
     volumes:
-      # Общий том с воркером: файл сохраняет API, а читает его воркер.
-      - documents:/app/storage/documents
+      # Общее состояние с воркером и с запуском вне Docker: документы и
+      # настройка кольца. Bind-mount, а не том: каталог совпадает с
+      # ./storage на хосте, поэтому все три режима — только Docker, только
+      # локально и смешанный (API локально, воркер в контейнере) — работают
+      # с одними и теми же файлами. С томом воркер не находил документ,
+      # загруженный локальным API, а состав кольца расходился между ними.
+      - ./storage:/app/storage
+      # Разрешает немедленно убрать только partial-блоки отменённой загрузки.
+      # Готовые blobs приложение не удаляет напрямую: для них используется
+      # штатный DELETE API Ollama.
+      - ${HOME}/.ollama/models/blobs:/ollama-blobs
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
@@ -87,7 +95,7 @@ services:
         condition: service_started
     environment: *app_env
     volumes:
-      - documents:/app/storage/documents
+      - ./storage:/app/storage
     extra_hosts:
       - "host.docker.internal:host-gateway"
     command: celery -A app.workers.celery_app:celery_app worker --loglevel=info
@@ -124,6 +132,5 @@ volumes:
   postgres_data:
   qdrant_data:
   redis_data:
-  documents:
   prometheus_data:
   grafana_data:
