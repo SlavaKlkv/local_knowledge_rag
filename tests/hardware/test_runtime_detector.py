@@ -56,6 +56,34 @@ def test_non_2xx_status_counts_as_unavailable():
     assert "500" in unavailable.detail
 
 
+def test_missing_runtime_is_explained_without_http_jargon():
+    def handler(url, timeout):
+        raise httpx.ConnectError("refused")
+
+    result = _detector(handler).detect()
+
+    detail = next(
+        r for r in result.runtimes if r.runtime == InferenceRuntime.OLLAMA
+    ).detail
+    assert "не запущен" in detail
+    assert "HTTP" not in detail
+
+
+def test_foreign_service_on_the_port_is_named_as_the_reason():
+    def handler(url, timeout):
+        return httpx.Response(404, request=httpx.Request("GET", url))
+
+    result = _detector(handler).detect()
+
+    detail = next(
+        r for r in result.runtimes if r.runtime == InferenceRuntime.VLLM
+    ).detail
+    # Код нужен для диагностики, но объяснение идёт первым.
+    assert detail.startswith("По адресу")
+    assert "порт занят другим сервисом" in detail
+    assert "404" in detail
+
+
 def test_timeout_is_reported_as_unavailable_with_detail():
     def handler(url, timeout):
         raise httpx.TimeoutException("timed out")

@@ -90,6 +90,40 @@ def get_profile_definition(profile: HardwareProfile) -> ProfileDefinition:
     return _PROFILES[profile]
 
 
+def known_ring_entries() -> dict[str, ModelRingEntry]:
+    """Каталог моделей всех профилей: имя модели → её описание.
+
+    Нужен там, где кольцо собрано не по профилю, а по выбору пользователя:
+    модель из соседнего профиля остаётся известной, и её цену загрузки
+    по-прежнему есть чем показать.
+    """
+    return {
+        entry.model: entry
+        for definition in _PROFILES.values()
+        for entry in definition.ring
+    }
+
+
+def heavier_profile_models(profile: HardwareProfile) -> set[str]:
+    """Модели колец профилей тяжелее данного.
+
+    Такая модель не подходит железу, даже если уже установлена в runtime:
+    предлагать её в списке кандидатов — значит звать пользователя собрать
+    кольцо, которое его машина не потянет. Модели, входящие и в кольцо
+    текущего профиля (например, общая llama для light и standard),
+    остаются доступными.
+    """
+    order = list(_PROFILES)
+    above = order[order.index(profile) + 1 :]
+    own = {entry.model for entry in _PROFILES[profile].ring}
+    return {
+        entry.model
+        for name in above
+        for entry in _PROFILES[name].ring
+        if entry.model not in own
+    }
+
+
 class ProfileRecommender:
     """Только рекомендует профиль — пользователь всегда может переопределить."""
 

@@ -32,3 +32,7 @@ storage/
 CLAUDE.md
 .claude/
 TASK.md
+
+# Локальные переопределения Compose: dev-монтирования, не для продового запуска
+docker-compose.override.yml
+/storage-demo/

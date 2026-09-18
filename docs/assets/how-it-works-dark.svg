@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 500" width="1280" height="500" role="img" aria-labelledby="t d">
+  <title id="t">Как это работает: асинхронная загрузка и синхронный вопрос</title>
+  <desc id="d">Загрузка разветвляется: API сразу возвращает 202 и job_id, а фоновая ветка продолжает обработку и строит индекс. Вопрос проходит все этапы последовательно в одном вызове, и ответ появляется только после локальной генерации.</desc>
+  <defs>
+    <style>
+      .bg { fill: #0d1117; }
+      .lbl { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #e8eaf2; }
+      .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace; fill: #e8eaf2; }
+      .dim { fill: #9aa3b8; }
+      .cap { font-size: 13px; font-weight: 750; letter-spacing: 1.3px; }
+      .h2 { font-size: 17px; font-weight: 700; }
+      .t { font-size: 15px; }
+      .s { font-size: 14px; }
+      .flow { fill: none; stroke: #cfd6e6; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+      .blue-line { fill: none; stroke: #60a5fa; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#cfd6e6"/></marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#60a5fa"/></marker>
+  </defs>
+
+  <rect class="bg" width="1280" height="500" rx="14"/>
+
+  <!-- Асинхронная загрузка: одна точка расходится на завершённый ответ и фоновую ветку. -->
+  <text class="lbl cap" x="48" y="42">ЗАГРУЗКА</text>
+
+  <text class="lbl s dim" x="48" y="104" dominant-baseline="middle">КЛИЕНТ</text>
+  <text class="lbl s dim" x="48" y="214" dominant-baseline="middle">В ФОНЕ</text>
+
+  <g transform="translate(-20 0)">
+  <circle cx="243" cy="104" r="17" fill="#0d1d33" stroke="#60a5fa" stroke-width="2.2"/>
+  <path d="M236 94 H247 L251 98 V114 H236 Z M247 94 V99 H251" fill="none" stroke="#60a5fa" stroke-width="1.8" stroke-linejoin="round"/>
+  <text class="lbl h2" x="243" y="69" text-anchor="middle">Файл</text>
+  <text class="mono s dim" x="243" y="146" text-anchor="middle">POST /documents</text>
+
+  <path class="blue-line" d="M262.2 104 H369"/>
+  <circle cx="385" cy="104" r="8" fill="#60a5fa"/>
+
+  <path class="blue-line" d="M394.1 104 H541" marker-end="url(#arrow-blue)"/>
+  <circle cx="571" cy="104" r="17" fill="#0b231c" stroke="#2fb88a" stroke-width="2.2"/>
+  <path d="M564 104 L569 109 L579 98" fill="none" stroke="#2fb88a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="lbl h2" x="571" y="69" text-anchor="middle">Ответ получен</text>
+  <text class="mono s" x="571" y="144" text-anchor="middle">202 + job_id</text>
+  <path d="M607 91 H751" fill="none" stroke="#9aa3b8" stroke-width="1.4" stroke-dasharray="6 6"/>
+  <text class="lbl s dim" x="763" y="96">клиент свободен</text>
+
+  <path class="flow" d="M385 113.1 V214 H526" marker-end="url(#arrow)"/>
+  <circle cx="553" cy="214" r="14" fill="#232838" stroke="#99a2b7" stroke-width="2"/>
+  <text class="lbl h2" x="553" y="184" text-anchor="middle">Очередь</text>
+  <text class="mono s dim" x="553" y="249" text-anchor="middle">pending → running</text>
+
+  <path class="flow" d="M569.1 214 H776" marker-end="url(#arrow)"/>
+  <circle cx="803" cy="214" r="14" fill="#1b1429" stroke="#9c78d3" stroke-width="2"/>
+  <text class="lbl h2" x="803" y="184" text-anchor="middle">Фоновый воркер</text>
+  <text class="lbl s dim" x="803" y="249" text-anchor="middle">парсинг · чанки · векторы</text>
+
+  <path class="flow" d="M819.1 214 H1040" marker-end="url(#arrow)"/>
+  <circle cx="1067" cy="214" r="14" fill="#2a0b1b" stroke="#ec4899" stroke-width="2"/>
+  <text class="lbl h2" x="1067" y="184" text-anchor="middle">Индекс готов</text>
+  <text class="lbl s dim" x="1067" y="249" text-anchor="middle">документ появился в поиске</text>
+  </g>
+
+  <path d="M48 290 H1232" fill="none" stroke="#232838" stroke-width="1.5"/>
+
+  <!-- Синхронный вопрос: одна непрерывная линия до итогового ответа. -->
+  <text class="lbl cap" x="48" y="326">ВОПРОС</text>
+  <text class="lbl s dim" x="640" y="326" text-anchor="middle">ОДИН НЕПРЕРЫВНЫЙ ВЫЗОВ</text>
+
+  <path class="flow" d="M187.2 412 H338.8"/>
+  <path class="flow" d="M373.2 412 H516.8"/>
+  <path class="flow" d="M551.2 412 H686.8"/>
+  <path class="flow" d="M721.2 412 H864.8"/>
+  <path class="flow" d="M899.2 412 H1042.8"/>
+  <path class="flow" d="M1077.2 412 H1170" marker-end="url(#arrow)"/>
+
+  <circle cx="170" cy="412" r="15" fill="#383842" stroke="#e7e9f1" stroke-width="2.2"/>
+  <text class="lbl h2" x="170" y="380" text-anchor="middle">Вопрос</text>
+  <text class="lbl s dim" x="170" y="450" text-anchor="middle">/chat или /search</text>
+
+  <circle cx="356" cy="412" r="15" fill="#24170c" stroke="#af5800" stroke-width="2.2"/>
+  <text class="lbl h2" x="356" y="380" text-anchor="middle">Поиск</text>
+  <text class="lbl s" x="356" y="450" text-anchor="middle">dense + sparse</text>
+  <text class="lbl s dim" x="356" y="473" text-anchor="middle">смысл + слова</text>
+
+  <circle cx="534" cy="412" r="15" fill="#232838" stroke="#99a2b7" stroke-width="2.2"/>
+  <text class="lbl h2" x="534" y="380" text-anchor="middle">RRF</text>
+  <text class="lbl s dim" x="534" y="450" text-anchor="middle"><tspan x="534">сужение до 30</tspan><tspan x="534" dy="18">кандидатов</tspan></text>
+
+  <circle cx="704" cy="412" r="15" fill="#232838" stroke="#99a2b7" stroke-width="2.2"/>
+  <text class="lbl h2" x="704" y="380" text-anchor="middle">Reranker</text>
+  <text class="lbl s dim" x="704" y="450" text-anchor="middle"><tspan x="704">отбор до 8 лучших</tspan><tspan x="704" dy="18">фрагментов</tspan></text>
+
+  <circle cx="882" cy="412" r="15" fill="#2a0b1b" stroke="#ec4899" stroke-width="2.2"/>
+  <text class="lbl h2" x="882" y="362" text-anchor="middle"><tspan x="882">Фрагменты</tspan><tspan x="882" dy="20">для ответа</tspan></text>
+  <text class="lbl s dim" x="882" y="450" text-anchor="middle">до ≈ 2000 токенов</text>
+  <text class="lbl s dim" x="882" y="473" text-anchor="middle">пусто → отказ</text>
+
+  <circle cx="1060" cy="412" r="15" fill="#383842" stroke="#e7e9f1" stroke-width="2.2"/>
+  <text class="lbl h2" x="1060" y="380" text-anchor="middle">Локальная LLM</text>
+  <text class="lbl s dim" x="1060" y="450" text-anchor="middle">ответ + citations</text>
+
+  <circle cx="1200" cy="412" r="17" fill="#0b231c" stroke="#2fb88a" stroke-width="2.2"/>
+  <path d="M1193 412 L1198 417 L1208 406" fill="none" stroke="#2fb88a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <text class="lbl h2" x="1200" y="380" text-anchor="middle">Ответ</text>
+
+</svg>

@@ -8,6 +8,7 @@ from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 
 from app.db.models import DocumentStatus, JobStatus, PermissionRole
+from app.rag.search_ranking import RankingMode
 
 
 class UserCreate(BaseModel):
@@ -50,6 +51,13 @@ class PermissionRead(BaseModel):
 
 class KnowledgeBaseCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
+    description: str | None = None
+
+
+class KnowledgeBaseUpdate(BaseModel):
+    """Частичное обновление базы знаний: меняем только присланные поля."""
+
+    name: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = None
 
 
@@ -120,6 +128,10 @@ class SearchRequest(BaseModel):
     knowledge_base_id: uuid.UUID
     top_k: int = Field(default=10, ge=1, le=100)
     score_threshold: float | None = Field(default=None, ge=0.0, le=1.0)
+    # Отсечка по скору reranking. None — берётся значение из настроек;
+    # шкала зависит от выбранного cross-encoder, поэтому универсальных
+    # границ поля нет (штатная русская модель возвращает значения 0..1).
+    min_score: float | None = None
 
 
 class SearchHit(BaseModel):
@@ -135,6 +147,10 @@ class SearchHit(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     hits: list[SearchHit]
+    # Чем определён порядок выдачи: cross-encoder или лексическое
+    # совпадение. Шкала скора у режимов разная, и без этого поля
+    # 0.95 и 1.00 в соседних ответах выглядели бы одной величиной.
+    ranking: RankingMode = RankingMode.CROSS_ENCODER
 
 
 class ChatRequest(BaseModel):

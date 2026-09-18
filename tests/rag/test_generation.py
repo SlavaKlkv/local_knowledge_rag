@@ -71,6 +71,20 @@ def test_citations_outside_context_are_discarded():
     assert [c.ref for c in answer.citations] == [1]
 
 
+@pytest.mark.parametrize("placeholder", ["...", "…", "—", "  "])
+def test_placeholder_answer_is_treated_as_no_answer(placeholder):
+    """Модель копирует плейсхолдер из примера — показывать его нельзя."""
+    provider = FakeProvider(
+        json.dumps({"answer": placeholder, "has_answer": True, "citations": [1, 2]})
+    )
+
+    answer = AnswerGenerator(provider, "qwen3:4b").generate("вопрос", _context())
+
+    assert answer.has_answer is False
+    assert answer.text == NO_ANSWER_TEXT
+    assert answer.citations == []
+
+
 def test_empty_context_short_circuits_to_no_answer():
     provider = FakeProvider(RuntimeError("модель не должна вызываться"))
 
