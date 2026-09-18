@@ -116,6 +116,103 @@ def test_search_returns_hits_with_citation_metadata(client, knowledge_base_id, m
     assert hits[0]["page"] == 1
 
 
+def test_search_drops_chunks_below_the_relevance_threshold(
+    client, knowledge_base_id, monkeypatch
+):
+    """Retrieval всегда отдаёт ближайшие чанки, даже когда в базе нет ответа.
+
+    Без отсечки по скору reranking пользователь получал бы случайные
+    фрагменты, по скору RRF неотличимые от настоящих попаданий.
+    """
+    from app.rag.reranker import RerankedChunk, Reranker
+
+    relevant = _hit(chunk_id="c1", text="Отпуск предоставляется ежегодно.")
+    noise = _hit(chunk_id="c2", text="Дежурный передаёт смену сводкой.")
+
+    class ScoringReranker(Reranker):
+        name = "scoring"
+
+        def rerank(self, query, candidates, top_k=8):
+            scores = {"c1": 4.2, "c2": -6.5}
+            return [
+                RerankedChunk(chunk=chunk, rerank_score=scores[chunk.chunk_id])
+                for chunk in candidates
+            ][:top_k]
+
+        def health_check(self) -> bool:
+            return True
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(
+        dependencies, "get_vector_store", lambda: FakeVectorStore([relevant, noise])
+    )
+    client.app.dependency_overrides[dependencies.get_reranker] = lambda: ScoringReranker()
+
+    response = client.post(
+        "/search",
+        json={"query": "отпуск", "knowledge_base_id": knowledge_base_id},
+    )
+
+    assert response.status_code == 200
+    hits = response.json()["hits"]
+    assert [hit["chunk_id"] for hit in hits] == ["c1"]
+    # В выдачу уходит скор reranking, а не RRF: именно он определил порядок.
+    assert hits[0]["score"] == pytest.approx(4.2)
+
+    client.app.dependency_overrides[dependencies.get_reranker] = lambda: NoOpReranker()
+    assert response.json()["ranking"] == "cross-encoder"
+
+
+def test_search_ignores_an_unsure_reranker_on_a_keyword_query(
+    client, knowledge_base_id, monkeypatch
+):
+    """Cross-encoder обучен на вопросах и на одном слове ранжирует наугад.
+
+    Здесь он ставит первым фрагмент, в котором слова запроса нет вовсе, а
+    точному попаданию даёт скор ниже порога отсечки. Пока лидер модели не
+    дотягивает до порога доверия, выдачу определяет лексика.
+    """
+    from app.rag.reranker import RerankedChunk, Reranker
+
+    relevant = _hit(chunk_id="c1", text="Командировка согласовывается руководителем.")
+    noise = _hit(chunk_id="c2", text="Дежурство в выходной компенсируется отгулом.")
+
+    class UnsureReranker(Reranker):
+        name = "unsure"
+
+        def rerank(self, query, candidates, top_k=8):
+            scores = {"c1": 0.09, "c2": 0.27}
+            return sorted(
+                (
+                    RerankedChunk(chunk=chunk, rerank_score=scores[chunk.chunk_id])
+                    for chunk in candidates
+                ),
+                key=lambda item: item.rerank_score,
+                reverse=True,
+            )[:top_k]
+
+        def health_check(self) -> bool:
+            return True
+
+    monkeypatch.setattr(dependencies, "get_embedding_provider", lambda: FakeEmbeddings())
+    monkeypatch.setattr(
+        dependencies, "get_vector_store", lambda: FakeVectorStore([relevant, noise])
+    )
+    client.app.dependency_overrides[dependencies.get_reranker] = lambda: UnsureReranker()
+
+    response = client.post(
+        "/search",
+        json={"query": "командировка", "knowledge_base_id": knowledge_base_id},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ranking"] == "lexical"
+    assert [hit["chunk_id"] for hit in body["hits"]] == ["c1"]
+
+    client.app.dependency_overrides[dependencies.get_reranker] = lambda: NoOpReranker()
+
+
 def test_chat_returns_grounded_answer_with_citations(client, knowledge_base_id, monkeypatch):
     import json
 
