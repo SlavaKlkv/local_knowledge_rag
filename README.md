@@ -195,11 +195,12 @@ embedding-модели, и зашитое число врало бы при её
 
 ## Запуск
 
-Четыре команды от клона до работающего интерфейса с готовой базой знаний.
+Пять команд от клона до работающего интерфейса с готовой базой знаний.
 Нужны только Docker и [Ollama](https://ollama.com) на хосте — в контейнере нет
 доступа к Metal на macOS и к GPU на Linux без отдельной настройки.
 
 ```bash
+git clone https://github.com/SlavaKlkv/local_knowledge_rag.git && cd local_knowledge_rag
 ollama pull qwen3:4b && ollama pull nomic-embed-text
 SECRET_KEY=$(openssl rand -hex 32) docker compose up -d
 docker compose exec api python -m scripts.seed_demo
@@ -213,7 +214,7 @@ PostgreSQL, Qdrant и Redis;
 на [localhost:8000/docs](http://localhost:8000/docs). Настройки берутся из
 окружения, за образец — [.env.example](.env.example).
 
-Третья команда создаёт пользователя `demo@example.com` / `demo-password` и
+Четвёртая команда создаёт пользователя `demo@example.com` / `demo-password` и
 **две** базы знаний, чтобы сразу было видно, что документы делятся по
 областям, а поиск идёт по выбранной базе:
 
