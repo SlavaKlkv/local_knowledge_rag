@@ -1,13 +1,15 @@
+<div align="center">
+
 # Local Knowledge RAG Platform
 
-![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white)
-![Qdrant](https://img.shields.io/badge/Qdrant-hybrid%20search-DC244C?logo=qdrant&logoColor=white)
-![Ollama](https://img.shields.io/badge/Ollama%20%7C%20vLLM-local%20inference-000000?logo=ollama&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green)
+**Полностью локальная RAG-платформа для интеллектуального поиска и ответов
+по внутренним документам организации.**
 
-Полностью локальная RAG-платформа для интеллектуального поиска и ответов
-по внутренним документам организации.
+[![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](https://www.python.org/) [![FastAPI](https://img.shields.io/badge/FastAPI-Pydantic%20v2-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/) [![Qdrant](https://img.shields.io/badge/Qdrant-hybrid%20search-DC244C?logo=qdrant&logoColor=white)](https://qdrant.tech/) [![Ollama](https://img.shields.io/badge/Ollama%20%7C%20vLLM-local%20inference-000000?logo=ollama&logoColor=white)](https://ollama.com/) [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+
+</div>
+
+---
 
 > **найди → отфильтруй → проверь → объясни → покажи источник — полностью локально.**
 
