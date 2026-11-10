@@ -30,6 +30,7 @@ storage/
 
 # Agent-local
 CLAUDE.md
+CODEX.md
 .claude/
 TASK.md
 
