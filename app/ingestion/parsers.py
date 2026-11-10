@@ -25,9 +25,7 @@ class TextParser:
     def parse(self, path: Path) -> ParsedDocument:
         text = normalize_text(path.read_text(encoding="utf-8", errors="replace"))
         blocks = [
-            ParsedBlock(text=paragraph)
-            for paragraph in text.split("\n\n")
-            if paragraph.strip()
+            ParsedBlock(text=paragraph) for paragraph in text.split("\n\n") if paragraph.strip()
         ]
         return ParsedDocument(blocks=blocks, meta={"format": "txt"})
 
@@ -85,28 +83,36 @@ class PdfParser:
 
 
 class DocxParser:
-    """DOCX: заголовки Word (Heading 1-6) становятся секциями, как в Markdown."""
+    """DOCX: заголовки Word индексируются и задают иерархию секций."""
 
     extensions = (".docx",)
-    _HEADING_STYLE = re.compile(r"^Heading (\d)$")
+    _HEADING_STYLE = re.compile(r"^(?:Heading|Заголовок) ([1-6])$")
 
     def parse(self, path: Path) -> ParsedDocument:
         from docx import Document as WordDocument
 
         document = WordDocument(str(path))
         blocks: list[ParsedBlock] = []
-        section: str | None = None
+        headings: dict[int, str] = {}
+
+        def section() -> str | None:
+            path = [headings[level] for level in sorted(headings)]
+            return " → ".join(path) or None
 
         for paragraph in document.paragraphs:
-            raw = paragraph.text
-            if not raw.strip():
+            text = normalize_text(paragraph.text)
+            if not text:
                 continue
-            if self._HEADING_STYLE.match(paragraph.style.name if paragraph.style else ""):
-                section = raw.strip()
-                continue
-            text = normalize_text(raw)
-            if text:
-                blocks.append(ParsedBlock(text=text, section=section))
+            style_name = paragraph.style.name if paragraph.style else ""
+            if heading := self._HEADING_STYLE.match(style_name):
+                level = int(heading.group(1))
+                headings[level] = text
+                for deeper_level in tuple(headings):
+                    if deeper_level > level:
+                        del headings[deeper_level]
+                blocks.append(ParsedBlock(text=text, section=section()))
+            else:
+                blocks.append(ParsedBlock(text=text, section=section()))
 
         for table in document.tables:
             # Таблицы часто несут регламентные значения (сроки, ставки) —
@@ -114,7 +120,7 @@ class DocxParser:
             for row in table.rows:
                 cells = [cell.text.strip() for cell in row.cells if cell.text.strip()]
                 if cells:
-                    blocks.append(ParsedBlock(text=" | ".join(cells), section=section))
+                    blocks.append(ParsedBlock(text=" | ".join(cells), section=section()))
 
         return ParsedDocument(blocks=blocks, meta={"format": "docx"})
 
@@ -130,9 +136,7 @@ class HtmlParser:
     def parse(self, path: Path) -> ParsedDocument:
         from bs4 import BeautifulSoup
 
-        soup = BeautifulSoup(
-            path.read_text(encoding="utf-8", errors="replace"), "lxml"
-        )
+        soup = BeautifulSoup(path.read_text(encoding="utf-8", errors="replace"), "lxml")
         for tag in soup.find_all(self._SKIP_TAGS):
             tag.decompose()
 
@@ -141,9 +145,7 @@ class HtmlParser:
         seen: set[int] = set()
 
         for element in soup.find_all(self._HEADINGS | self._BLOCK_TAGS):
-            if id(element) in seen or any(
-                id(parent) in seen for parent in element.parents
-            ):
+            if id(element) in seen or any(id(parent) in seen for parent in element.parents):
                 continue
             raw = element.get_text(" ", strip=True)
             if not raw:

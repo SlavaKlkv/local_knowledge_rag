@@ -20,8 +20,9 @@ def test_parses_plain_text_into_paragraph_blocks(tmp_path, registry):
 
 def test_markdown_headings_become_sections(tmp_path, registry):
     path = tmp_path / "policy.md"
-    path.write_text("# Отпуска\n\nПравила отпуска.\n\n## Перенос\n\nПравила переноса.",
-                    encoding="utf-8")
+    path.write_text(
+        "# Отпуска\n\nПравила отпуска.\n\n## Перенос\n\nПравила переноса.", encoding="utf-8"
+    )
 
     blocks = registry.parse(path).blocks
 
@@ -70,8 +71,35 @@ def test_docx_headings_become_sections(tmp_path, registry):
     blocks = registry.parse(path).blocks
 
     assert [(b.section, b.text) for b in blocks] == [
+        ("Отпуска", "Отпуска"),
         ("Отпуска", "Отпуск предоставляется ежегодно."),
-        ("Перенос", "Перенос согласуется с руководителем."),
+        ("Отпуска → Перенос", "Перенос"),
+        ("Отпуска → Перенос", "Перенос согласуется с руководителем."),
+    ]
+
+
+def test_docx_heading_only_document_is_indexable(tmp_path, registry):
+    pytest.importorskip("docx")
+    from docx import Document as WordDocument
+
+    document = WordDocument()
+    document.add_heading("Основной регламент", level=1)
+    document.add_heading("Правила ОРК", level=2)
+    document.add_heading("Приём заказа", level=3)
+    document.add_heading("Отгрузка", level=3)
+    path = tmp_path / "headings.docx"
+    document.save(path)
+
+    blocks = registry.parse(path).blocks
+
+    assert [(block.section, block.text) for block in blocks] == [
+        ("Основной регламент", "Основной регламент"),
+        ("Основной регламент → Правила ОРК", "Правила ОРК"),
+        (
+            "Основной регламент → Правила ОРК → Приём заказа",
+            "Приём заказа",
+        ),
+        ("Основной регламент → Правила ОРК → Отгрузка", "Отгрузка"),
     ]
 
 
